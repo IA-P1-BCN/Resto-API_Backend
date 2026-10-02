@@ -10,6 +10,18 @@
 
 ## 1. Neon (base de datos)
 
+> ✅ **Ya creado** (2026-10-02): proyecto `restoapi` (`small-violet-45321750`) en la organización de Anna · AWS Frankfurt · Postgres 16 · base de datos `restoapi`.
+>
+> | Rama Neon | Usuario | Uso | Quién tiene la URL |
+> |---|---|---|---|
+> | `main` | `restoapi_owner` | Producción (Render) | Solo Anna |
+> | `dev` | `restoapi_dev` | Integración compartida | Equipo |
+>
+> `restoapi_dev` solo existe en la rama `dev`: compartir su URL no da acceso a producción.
+> **Nunca** compartas la URL de `restoapi_owner`: tiene la misma contraseña en `main` y en `dev`.
+
+Pasos (por si hay que recrearlo):
+
 1. [neon.tech](https://neon.tech) → **New Project** → región **AWS Europe (Frankfurt)** · Postgres 16 · base de datos `restoapi`.
 2. **Branches → New branch** `dev` desde `main` (`main` = producción, `dev` = integración).
 3. **Connect** → marcar *Connection pooling* → copiar la cadena y adaptarla a SQLAlchemy:
