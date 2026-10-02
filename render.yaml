@@ -1,0 +1,37 @@
+# Render Blueprint — servicio web de la API (FastAPI).
+# Render → New → Blueprint → seleccionar este repo. Los valores con "sync: false"
+# se piden en el dashboard al crear el servicio (nunca se escriben aquí).
+services:
+  - type: web
+    name: restoapi
+    runtime: python
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    # El deploy lo lanza GitHub Actions (deploy.yml) solo si los tests pasan.
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: JWT_EXPIRE_MINUTES
+        value: "60"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # Cambiar a "true" cuando Brevo esté configurado (HU-19, D7).
+      - key: EMAIL_ENABLED
+        value: "false"
+      - key: DATABASE_URL # Neon, rama main (pooled, sslmode=require)
+        sync: false
+      - key: ALLOWED_ORIGINS # URL de producción de Vercel
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
