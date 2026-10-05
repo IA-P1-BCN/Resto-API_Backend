@@ -18,7 +18,8 @@ Estados: ⏳ pendiente · ✅ confirmado · ⚠️ difiere (hay que adaptar el c
 |---|---|---|---|
 | D1 | `Base`: clase `DeclarativeBase` de SQLAlchemy 2.0 | `app/models/dining_table.py:12` (import), `tests/conftest.py:93` (`Base.metadata.create_all`) | ⏳ |
 | D2 | `Base` **no** define `naming_convention` para `ck`. Si la define con `%(constraint_name)s`, renombrar los CHECK a `capacity_positive`, `location`, `status` | `app/models/dining_table.py:29-39` | ⏳ |
-| D3 | `get_db()`: dependencia generadora que hace `yield Session` | `tests/conftest.py:136` (`app.dependency_overrides[get_db]`) | ⏳ |
+| D3 | `get_db()`: dependencia generadora **síncrona** que hace `yield Session` y la cierra en su `finally`. **No hace commit**: ni al terminar la petición ni en ningún otro momento. El router tampoco cierra la sesión | `tests/conftest.py:136` (`app.dependency_overrides[get_db]`), `app/routers/tables.py:14-16` (`DbSession`) | ⏳ |
+| D4 | Como `get_db` no hace commit (D3), **el router confirma la transacción**. En POST, PUT y PATCH `/status`: `try` → servicio → `commit` → `refresh`; si falla, `except Exception` → `rollback` → `raise`. En DELETE: servicio (`db.delete`) → `commit`, sin `refresh`. Los GET no tocan la transacción. El servicio nunca hace commit, solo `add`/`flush`/`delete`. Si Carla hace que `get_db` haga commit, hay que quitar los `commit` del router | `app/routers/tables.py:89-162`, `app/services/dining_table_service.py:26-27` | ⏳ |
 
 ## 2. `app/main.py` (Carla, C-01)
 
@@ -44,16 +45,14 @@ Estados: ⏳ pendiente · ✅ confirmado · ⚠️ difiere (hay que adaptar el c
 | A2 | JWT HS256 firmado con `JWT_SECRET_KEY` | `tests/conftest.py:44-45` (`JWT_ALGORITHM`) | ⏳ |
 | A3 | Claims del JWT: `sub` = id del usuario (str), `role`, `exp`. Si `sub` es el email, ajustar `_stub_token` | `tests/conftest.py:193` | ⏳ |
 | A4 | **Stub de tokens activo** (`USE_STUB_TOKENS = True`). Poner a `False` cuando exista `/auth/login` y borrar `_stub_token` | `tests/conftest.py:41-43`, `:192` | ⏳ |
-| A5 | `get_current_user()` y `require_role(*roles)` con la firma de §5.2. **Ojo:** mientras siga el stub que «devuelve un admin fijo», los tests de 403 para `waiter`/`customer` fallarán. Es lo esperado hasta el 06/10 | Router de mesas (Fase 2) y tests de integración | ⏳ |
+| A5 | `get_current_user()` y `require_role(*roles)` con la firma de §5.2. **Ojo:** mientras siga el stub que «devuelve un admin fijo», los tests de 403 para `waiter`/`customer` fallarán. Es lo esperado hasta el 06/10.<br>**Firma exacta asumida:**<br>• `get_current_user`: dependencia sin parámetros de ruta (`Depends(get_current_user)`). Lee el Bearer token, devuelve el `User` del ORM y lanza 401 si el token falta o no es válido.<br>• `require_role(*roles: str)`: **fábrica** variádica que devuelve una dependencia. Esa dependencia depende de `get_current_user` (sin token → 401), devuelve el `User` y lanza 403 si su rol no está en `roles`.<br>El router solo importa `require_role` y la usa en `dependencies=[Depends(require_role(...))]`: GET y PATCH `/status` → `"admin", "waiter"`; POST, PUT y DELETE → `"admin"` | `app/routers/tables.py:18-22`, `:37-38` (`ADMIN_ONLY`, `ADMIN_OR_WAITER`) y tests de integración | ⏳ |
 
 ## 5. Errores y paginación (Rita, R-04 / HU-11)
 
-Todavía no los usa ningún fichero de la Fase 1. Se usarán en el servicio y el router (Fase 2).
-
-| # | Firma asumida | Se usará en | Estado |
+| # | Firma asumida | Se usa en | Estado |
 |---|---|---|---|
-| E1 | `app.core.exceptions.NotFoundError` y `ConflictError`, con handler global que responde `{"detail": str, "code": str}` | `app/services/dining_table_service.py` | ⏳ (falta conocer el constructor y los valores de `code`) |
-| P1 | Helper de `app.core.pagination` que devuelve `{"items", "total", "page", "size"}` | `GET /tables` | ⏳ (falta conocer el nombre, la firma y los límites de `size`) |
+| E1 | `app.core.exceptions.NotFoundError` y `ConflictError`, con handler global que responde `{"detail": str, "code": str}`.<br>**Firma exacta asumida:** las dos heredan de `HTTPException` y su constructor es `(detail: str, *, code: str)`. Cada clase fija su propio `status_code` (404 y 409), así que el servicio no lo pasa.<br>**`code` provisionales** (por confirmar con Rita): `"not_found"` y `"conflict"`, en las constantes `NOT_FOUND_CODE` y `CONFLICT_CODE`.<br>**422:** FastAPI devuelve por defecto `{"detail": [...]}` sin `code`. Hasta que Rita confirme si su handler también reformatea los errores de validación, **los tests de 422 comprueban solo el `status_code`** | `app/services/dining_table_service.py:13-24` | ⏳ |
+| P1 | Helper de `app.core.pagination` que devuelve `{"items", "total", "page", "size"}`.<br>**Mientras tanto la paginación es inline** en `app/routers/tables.py`, con un modelo local `DiningTablePage(items: list[DiningTableRead], total, page, size)`. Query params: `page` (≥ 1, por defecto 1) y `size` (1..100, por defecto 20). El router calcula `skip = (page - 1) * size` y llama a `list_tables(db, skip, limit)`, que devuelve `(items, total)`.<br>**Se migrará al helper de Rita** cuando llegue a `dev`, y entonces se borrará `DiningTablePage` | `app/routers/tables.py:41-72` (`DiningTablePage`, `GET /tables`) | ⏳ (falta conocer el nombre, la firma y los límites de `size`) |
 
 ## 6. Herramientas y configuración
 
