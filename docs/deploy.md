@@ -59,6 +59,11 @@ Pasos (por si hay que recrearlo):
 | Variable | `RENDER_URL` | `https://<servicio>.onrender.com` |
 | Variable | `COVERAGE_MIN` | `0` al principio · `70` en el Sprint 2 |
 
+| Workflow | Cuándo | Qué hace |
+|---|---|---|
+| `ci.yml` (job `tests`) | PR a `dev`/`main` y push a `dev` | ruff → una sola cabeza de Alembic → migraciones → pytest + cobertura → build Docker. Check obligatorio para mergear |
+| `deploy.yml` | Push a `main` | Reutiliza `ci.yml` y, si pasa, dispara el deploy hook de Render y comprueba `/health` |
+
 Mientras `RENDER_DEPLOY_HOOK_URL` no exista, `deploy.yml` ejecuta los tests y **omite** el deploy con un aviso.
 Los pasos de Alembic, pytest y Docker se activan solos cuando existan `alembic.ini`, `tests/` y `Dockerfile`.
 

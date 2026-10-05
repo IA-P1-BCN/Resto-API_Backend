@@ -1,0 +1,67 @@
+name: ci
+
+# Lint + migraciones + tests en cada PR a dev/main y en cada push a dev.
+# deploy.yml lo reutiliza (workflow_call) antes de desplegar.
+# Los pasos de Alembic, pytest y Docker se activan solos cuando existan
+# alembic.ini, tests/ y Dockerfile.
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: restoapi_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/restoapi_test
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY_TEST || 'test-secret' }}
+      ENVIRONMENT: test
+      EMAIL_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Una sola cabeza de Alembic
+        if: hashFiles('alembic.ini') != ''
+        run: |
+          heads=$(alembic heads | grep -c . || true)
+          echo "Cabezas de Alembic: $heads"
+          if [ "$heads" -gt 1 ]; then
+            alembic heads
+            echo "::error::Hay $heads cabezas de Alembic: hay que unificar las migraciones (alembic merge)."
+            exit 1
+          fi
+      - name: Migraciones
+        if: hashFiles('alembic.ini') != ''
+        run: alembic upgrade head
+      - name: Tests + cobertura
+        if: hashFiles('tests/**/*.py') != ''
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=${{ vars.COVERAGE_MIN || 0 }}
+      - name: Build de la imagen Docker
+        if: hashFiles('Dockerfile') != ''
+        run: docker build -t restoapi-backend .
