@@ -103,3 +103,37 @@ git push
 - [ ] Datos de demo cargados en Neon `main`
 - [ ] Usuarios demo por rol funcionando
 - [ ] Vídeo de respaldo grabado (D9) y `docker-compose up` listo como plan B
+
+## 7. Docker en local (HU-02)
+
+Levanta todo el stack con un solo comando: API + PostgreSQL 16 + frontend. Sirve también como **plan B de la demo** si Render o Vercel fallan.
+
+**Requisitos:** Docker Desktop arrancado y los dos repos clonados en la misma carpeta:
+
+```text
+P2_Resto/
+├── Resto-API_Backend/    ← docker-compose.yml
+└── Resto-API_Frontend/
+```
+
+Si el frontend está en otra ruta, añadir `FRONTEND_PATH=/ruta/al/frontend` en el `.env` del backend.
+
+```bash
+cd Resto-API_Backend
+docker compose up --build        # primera vez o tras cambiar dependencias
+docker compose up -d             # en segundo plano
+docker compose logs -f api       # ver logs de la API
+docker compose down              # parar
+docker compose down -v           # parar y BORRAR los datos de la BD
+```
+
+| Servicio | URL | Imagen |
+|---|---|---|
+| `frontend` | http://localhost:5173 | `Resto-API_Frontend/Dockerfile` (Node 22 → nginx) |
+| `api` | http://localhost:8000 · `/docs` | `Resto-API_Backend/Dockerfile` (Python 3.12) |
+| `db` | `localhost:5432` (usuario, contraseña y BD: `restoapi`) | `postgres:16` |
+
+- Al arrancar, la API aplica las migraciones (`alembic upgrade head`) si ya existe `alembic.ini`.
+- `VITE_API_URL` se fija en el build del frontend: si cambia, hay que reconstruir con `docker compose up --build`.
+- Si el puerto 5432 está ocupado (otro Postgres local), parar ese contenedor o cambiar el puerto en `docker-compose.yml`.
+- Hasta que exista `app/main.py` (esqueleto de Carla), el servicio `api` arranca y se cae: es lo esperado.
