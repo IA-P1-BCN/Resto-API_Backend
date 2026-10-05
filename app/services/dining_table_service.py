@@ -24,7 +24,8 @@ CONFLICT_CODE = "conflict"
 NOT_FOUND_CODE = "not_found"
 
 # El servicio nunca hace commit: la transacción la gestiona el caller
-# (router o fixture de test). Solo add/flush/delete.
+# (router o fixture de test). Hace add/flush/delete y deja la sesión
+# consistente para consultas posteriores.
 
 
 def _ensure_number_available(
@@ -97,7 +98,12 @@ def change_status(db: Session, table_id: int, status: str) -> DiningTable:
 
 
 def delete_table(db: Session, table_id: int) -> None:
-    """Delete a table. Raise NotFoundError if it does not exist."""
+    """Delete a table. Raise NotFoundError if it does not exist.
+
+    Flushes after the delete so later lookups in the same session (e.g.
+    get_table) no longer find it. The commit is left to the caller.
+    """
     table = get_table(db, table_id)
     db.delete(table)
+    db.flush()
     logger.info("Deleted table id=%s", table_id)

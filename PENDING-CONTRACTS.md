@@ -19,7 +19,7 @@ Estados: ⏳ pendiente · ✅ confirmado · ⚠️ difiere (hay que adaptar el c
 | D1 | `Base`: clase `DeclarativeBase` de SQLAlchemy 2.0 | `app/models/dining_table.py:12` (import), `tests/conftest.py:93` (`Base.metadata.create_all`) | ⏳ |
 | D2 | `Base` **no** define `naming_convention` para `ck`. Si la define con `%(constraint_name)s`, renombrar los CHECK a `capacity_positive`, `location`, `status` | `app/models/dining_table.py:29-39` | ⏳ |
 | D3 | `get_db()`: dependencia generadora **síncrona** que hace `yield Session` y la cierra en su `finally`. **No hace commit**: ni al terminar la petición ni en ningún otro momento. El router tampoco cierra la sesión | `tests/conftest.py:136` (`app.dependency_overrides[get_db]`), `app/routers/tables.py:14-16` (`DbSession`) | ⏳ |
-| D4 | Como `get_db` no hace commit (D3), **el router confirma la transacción**. En POST, PUT y PATCH `/status`: `try` → servicio → `commit` → `refresh`; si falla, `except Exception` → `rollback` → `raise`. En DELETE: servicio (`db.delete`) → `commit`, sin `refresh`. Los GET no tocan la transacción. El servicio nunca hace commit, solo `add`/`flush`/`delete`. Si Carla hace que `get_db` haga commit, hay que quitar los `commit` del router | `app/routers/tables.py:89-162`, `app/services/dining_table_service.py:26-27` | ⏳ |
+| D4 | Como `get_db` no hace commit (D3), **el router confirma la transacción**. En POST, PUT y PATCH `/status`: `try` → servicio → `commit` → `refresh`; si falla, `except Exception` → `rollback` → `raise`. En DELETE: servicio (`db.delete`) → `commit`, sin `refresh`. Los GET no tocan la transacción. El servicio nunca hace commit, solo `add`/`flush`/`delete`. Si Carla hace que `get_db` haga commit, hay que quitar los `commit` del router | `app/routers/tables.py:89-162`, `app/services/dining_table_service.py:26-28` | ⏳ |
 
 ## 2. `app/main.py` (Carla, C-01)
 
@@ -58,7 +58,7 @@ Estados: ⏳ pendiente · ✅ confirmado · ⚠️ difiere (hay que adaptar el c
 
 | # | Punto | Dónde | Estado |
 |---|---|---|---|
-| T1 | `# noqa: I001` temporal: mientras `app/core/` no exista, ruff clasifica `app.core` como paquete de terceros y pide otro orden de imports. Quitarlo cuando llegue el esqueleto | `app/models/dining_table.py:6-7` | ⏳ |
+| T1 | `# noqa: I001` temporal: mientras `app/core/` no exista, ruff clasifica `app.core` como paquete de terceros y pide otro orden de imports. Quitarlo cuando llegue el esqueleto | `app/models/dining_table.py:6-7`, `tests/unit/test_dining_table_service.py:6-7`. Dentro de `app/` no hace falta desde que existe `app/__init__.py` (el servicio y el router pasan sin `noqa`); fuera de `app/`, sí | ⏳ |
 | T2 | No hay `pyproject.toml` ni `ruff.toml`: se ha usado la configuración por defecto de ruff (line-length 88) | Todos los ficheros nuevos | ⏳ (Carla y Anna) |
 | T3 | Con solo `conftest.py` y sin tests, `pytest` sale con código 5 («no tests collected»). Se resuelve al añadir los tests de la Fase 2 | `deploy.yml` (paso de pytest) | ⏳ |
 | T4 | **Migración de `dining_tables` no creada** (§10 R8: Carla coordina las migraciones). Se crea cuando exista `alembic/` en `dev` | `alembic/versions/` | ⏳ |
