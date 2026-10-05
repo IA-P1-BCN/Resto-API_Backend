@@ -10,7 +10,7 @@
 
 ## 1. Neon (base de datos)
 
-> ✅ **Ya creado** (2026-10-02): proyecto `restoapi` (`small-violet-45321750`) en la organización de Anna · AWS Frankfurt · Postgres 16 · base de datos `restoapi`.
+> ✅ **Ya creado** (2026-10-02): proyecto `Resto-API` (`small-violet-45321750`) en la organización de Anna · AWS Frankfurt · Postgres 16 · base de datos `restoapi`.
 >
 > | Rama Neon | Usuario | Uso | Quién tiene la URL |
 > |---|---|---|---|
