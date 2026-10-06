@@ -3,8 +3,7 @@
 Se llama dining_tables porque `table` es palabra reservada de SQL.
 """
 
-# TODO: quitar el noqa cuando exista app/core/ (ruff lo toma como paquete de terceros mientras falte).
-from typing import get_args  # noqa: I001
+from typing import get_args
 
 from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
