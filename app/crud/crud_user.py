@@ -1,8 +1,10 @@
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
 import bcrypt
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
 from app.models.model_user import User
 from app.schemas.schema_user import UserCreate, UserUpdate
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -36,13 +38,16 @@ def update_user(db: Session, user_id: int, data: UserUpdate):
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if data.email and data.email != db_user.email:
-        if get_user_by_email(db, data.email):
-            raise HTTPException(status_code=409, detail="Email already registered")
+    if (
+        data.email
+        and data.email != db_user.email
+        and get_user_by_email(db, data.email)
+    ):
+        raise HTTPException(status_code=409, detail="Email already registered")
 
     for field, value in data.model_dump(exclude_unset=True).items():
         if field == "password":
-            setattr(db_user, "password_hash", hash_password(value))
+            db_user.password_hash = hash_password(value)
         else:
             setattr(db_user, field, value)
 

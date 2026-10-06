@@ -1,6 +1,7 @@
 from fastapi import FastAPI
-from app.database import engine, Base, get_db
-from app.models import model_user  # Registrar modelos
+
+from app.database import Base, engine, get_db
+from app.models import model_user
 from app.routers import router_user
 
 Base.metadata.create_all(bind=engine)
