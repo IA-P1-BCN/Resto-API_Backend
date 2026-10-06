@@ -14,3 +14,4 @@ htmlcov
 docs
 *.md
 docker-compose.yml
+*.db

@@ -13,3 +13,8 @@ app.include_router(router_user.router)
 @app.get("/")
 def root():
     return {"message": "API Resto working"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
