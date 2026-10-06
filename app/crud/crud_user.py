@@ -27,6 +27,7 @@ def create_user(db: Session, user: UserCreate):
         email=user.email,
         password_hash=hash_password(user.password),
         phone=user.phone,
+        role=user.role.value,
     )
     db.add(db_user)
     db.commit()
@@ -45,7 +46,7 @@ def update_user(db: Session, user_id: int, data: UserUpdate):
     ):
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in data.model_dump(mode="json", exclude_unset=True).items():
         if field == "password":
             db_user.password_hash = hash_password(value)
         else:

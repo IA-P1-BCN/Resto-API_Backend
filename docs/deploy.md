@@ -142,4 +142,5 @@ docker compose down -v           # parar y BORRAR los datos de la BD
 - `VITE_API_URL` se fija en el build del frontend: si cambia, hay que reconstruir con `docker compose up --build`.
 - Si el puerto 5432 está ocupado (otro Postgres instalado en el equipo), añadir `DB_PORT=5433` al `.env`: la BD queda en `localhost:5433`.
 - Mientras la API no tenga `/auth/login`, se puede levantar el frontend con datos simulados: `VITE_USE_MOCK=true` en el `.env` y `docker compose up --build`.
-- Hasta que exista `app/main.py` (esqueleto de Carla), el servicio `api` arranca y se cae: es lo esperado.
+- Primer admin (sin él nadie puede usar `/users`): `docker compose exec api python -m app.scripts.create_admin EMAIL PASSWORD [NOMBRE]`. Si el email ya existe, lo convierte en admin.
+- Mientras no haya Alembic, las tablas se crean con `create_all`, que no añade columnas nuevas a tablas existentes: si una BD local es anterior a HU-05 (sin `users.role`), recrearla con `docker compose down -v`.

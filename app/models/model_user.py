@@ -1,6 +1,15 @@
+import enum
+
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
 
 from app.database import Base
+
+
+class Role(str, enum.Enum):
+    admin = "admin"
+    waiter = "waiter"
+    kitchen = "kitchen"
+    customer = "customer"
 
 
 class User(Base):
@@ -11,5 +20,6 @@ class User(Base):
     email = Column(String(150), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     phone = Column(String(20))
+    role = Column(String(20), nullable=False, default=Role.customer.value, server_default=Role.customer.value)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, server_default=func.now())
