@@ -140,5 +140,6 @@ docker compose down -v           # parar y BORRAR los datos de la BD
 
 - Al arrancar, la API aplica las migraciones (`alembic upgrade head`) si ya existe `alembic.ini`.
 - `VITE_API_URL` se fija en el build del frontend: si cambia, hay que reconstruir con `docker compose up --build`.
-- Si el puerto 5432 está ocupado (otro Postgres local), parar ese contenedor o cambiar el puerto en `docker-compose.yml`.
+- Si el puerto 5432 está ocupado (otro Postgres instalado en el equipo), añadir `DB_PORT=5433` al `.env`: la BD queda en `localhost:5433`.
+- Mientras la API no tenga `/auth/login`, se puede levantar el frontend con datos simulados: `VITE_USE_MOCK=true` en el `.env` y `docker compose up --build`.
 - Hasta que exista `app/main.py` (esqueleto de Carla), el servicio `api` arranca y se cae: es lo esperado.

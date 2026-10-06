@@ -8,6 +8,10 @@
 #
 #   docker compose up --build      → http://localhost:5173 (web) · http://localhost:8000/docs (API)
 #   docker compose down            → parar   ·   docker compose down -v → parar y borrar la BD
+#
+# Variables opcionales (en el .env de esta carpeta):
+#   DB_PORT=5433          → si el 5432 está ocupado por un Postgres instalado en el equipo
+#   VITE_USE_MOCK=true    → el frontend usa datos simulados en vez de la API
 
 name: restoapi
 
@@ -19,7 +23,7 @@ services:
       POSTGRES_PASSWORD: restoapi
       POSTGRES_DB: restoapi
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -52,6 +56,7 @@ services:
       args:
         # El navegador llama a la API desde el host, por eso localhost
         VITE_API_URL: http://localhost:8000
+        VITE_USE_MOCK: ${VITE_USE_MOCK:-false}
     ports:
       - "5173:80"
     depends_on:
