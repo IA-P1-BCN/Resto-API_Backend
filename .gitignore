@@ -219,3 +219,6 @@ __marimo__/
 
 # Local project plan (not versioned)
 docs/*.pdf
+
+# Database files
+*.db
