@@ -10,6 +10,7 @@ implementacion real este en dev.
 
 TODO: eliminar cuando Carla mergee HU-05 a dev.
 """
+from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 
@@ -22,11 +23,13 @@ def get_current_user() -> dict:
 def require_role(*roles: str):
     """Stub: devuelve una dependencia que solo permite los roles indicados."""
 
-    def dependency(current_user: dict = Depends(get_current_user)) -> dict:
+    def dependency(
+        current_user: Annotated[dict, Depends(get_current_user)],
+    ) -> dict:
         if roles and current_user.get("role") not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Rol no autorizado",
+                detail="Rol no autorizado",
             )
         return current_user
 
