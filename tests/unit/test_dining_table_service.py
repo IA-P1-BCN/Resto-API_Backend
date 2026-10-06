@@ -3,8 +3,7 @@
 Assumptions: see PENDING-CONTRACTS.md (E1).
 """
 
-# TODO(T1): quitar el noqa cuando exista app/core/ (ruff lo toma como paquete de terceros mientras falte).
-import pytest  # noqa: I001
+import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
