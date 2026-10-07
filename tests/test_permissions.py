@@ -87,3 +87,32 @@ def test_create_admin_promociona_existente(db, make_user):
     assert user.id == customer.id
     assert user.role == "admin"
     assert user.is_active is True
+
+@pytest.mark.parametrize("url", ["/categories/", "/dishes/"])
+def test_menu_sin_token_401(client, url):
+    assert client.get(url).status_code == 401
+
+@pytest.mark.parametrize("role", list(Role))
+@pytest.mark.parametrize("url", ["/categories/", "/dishes/"])
+def test_menu_lectura_todos_los_roles_200(client, auth_headers, role, url):
+    assert client.get(url, headers=auth_headers(role)).status_code == 200
+
+@pytest.mark.parametrize("role", [Role.waiter, Role.kitchen, Role.customer])
+@pytest.mark.parametrize(
+    ("method", "url"),
+    [
+        ("post", "/categories/"),
+        ("put", "/categories/1"),
+        ("delete", "/categories/1"),
+        ("post", "/dishes/"),
+        ("put", "/dishes/1"),
+        ("delete", "/dishes/1"),
+    ],
+)
+def test_menu_escritura_solo_admin_403(client, auth_headers, role, method, url):
+    r = client.request(method, url, headers=auth_headers(role), json={})
+    assert r.status_code == 403
+
+@pytest.mark.parametrize("role", [Role.kitchen, Role.customer])
+def test_mesas_sin_permiso_403(client, auth_headers, role):
+    assert client.get("/tables", headers=auth_headers(role)).status_code == 403

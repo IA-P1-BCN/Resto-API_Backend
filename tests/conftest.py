@@ -1,23 +1,26 @@
 """Fixtures compartidas de los tests.
 
-Todos los tests usan la misma BD SQLite (test.db), que se crea y se borra en cada
+Todos los tests usan la misma BD SQLite en memoria, que se crea y se borra en cada
 test. El override de get_db se pone y se quita dentro de un fixture: así ningún
 fichero de tests pisa los overrides de otro.
 """
 
+import bcrypt
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core.security import create_access_token
-from app.crud.crud_user import hash_password
 from app.database import Base, get_db
 from app.main import app
 from app.models.model_user import Role, User
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# StaticPool: una sola conexión, para que todas las sesiones vean la misma BD en memoria.
+engine = create_engine(
+    "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -57,7 +60,8 @@ def make_user(db):
         user = User(
             name=f"{role.value} test",
             email=email or f"{role.value}@test.com",
-            password_hash=hash_password("secreto123"),
+            # rounds=4: hash válido para verify_password pero mucho más rápido.
+            password_hash=bcrypt.hashpw(b"secreto123", bcrypt.gensalt(rounds=4)).decode(),
             role=role.value,
             is_active=is_active,
         )

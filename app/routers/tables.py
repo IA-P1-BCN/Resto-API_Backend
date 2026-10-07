@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 # ASSUMPTION D3: app.core.database expone get_db (generador sync de Session
 # que NO hace commit; solo yield + close). Ver PENDING-CONTRACTS.md.
 from app.core.database import get_db
-
 from app.core.permissions import TABLES, require_role
 from app.models.dining_table import DiningTable
 from app.models.model_user import Role
