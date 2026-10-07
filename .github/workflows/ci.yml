@@ -34,7 +34,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/restoapi_test
-      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY_TEST || 'test-secret' }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY_TEST || 'test-secret-solo-para-ci-0000000000' }}
       ENVIRONMENT: test
       EMAIL_ENABLED: "false"
     steps:

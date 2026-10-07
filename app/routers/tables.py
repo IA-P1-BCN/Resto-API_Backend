@@ -14,13 +14,9 @@ from sqlalchemy.orm import Session
 # ASSUMPTION D3: app.core.database expone get_db (generador sync de Session
 # que NO hace commit; solo yield + close). Ver PENDING-CONTRACTS.md.
 from app.core.database import get_db
-
-# ASSUMPTION A5: app.core.security expone get_current_user y
-# require_role(*roles). Ver PENDING-CONTRACTS.md.
-# ASSUMPTION A5: el stub de auth devuelve siempre admin, por lo que
-# los tests de 403 fallarán hasta que Carla lo sustituya.
-from app.core.security import require_role
+from app.core.permissions import TABLES, require_role
 from app.models.dining_table import DiningTable
+from app.models.model_user import Role
 from app.schemas.dining_table import (
     DiningTableCreate,
     DiningTableRead,
@@ -34,8 +30,8 @@ router = APIRouter(prefix="/tables", tags=["tables"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 # require_role ya depende de get_current_user: sin token → 401, rol no permitido → 403.
-ADMIN_ONLY = [Depends(require_role("admin"))]
-ADMIN_OR_WAITER = [Depends(require_role("admin", "waiter"))]
+ADMIN_ONLY = [Depends(require_role(Role.admin))]
+ADMIN_OR_WAITER = [Depends(require_role(*TABLES))]
 
 
 # ASSUMPTION P1: paginación inline mientras no conozcamos el helper de
