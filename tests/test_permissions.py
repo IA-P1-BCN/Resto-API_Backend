@@ -116,3 +116,30 @@ def test_menu_escritura_solo_admin_403(client, auth_headers, role, method, url):
 @pytest.mark.parametrize("role", [Role.kitchen, Role.customer])
 def test_mesas_sin_permiso_403(client, auth_headers, role):
     assert client.get("/tables", headers=auth_headers(role)).status_code == 403
+
+
+# --- Flujo completo con el login real (HU-04): login -> token -> permisos ---
+
+
+def login_headers(client, make_user, role):
+    user = make_user(role)
+    r = client.post("/auth/login", data={"username": user.email, "password": "secreto123"})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+def test_login_waiter_users_403(client, make_user):
+    assert client.get("/users/", headers=login_headers(client, make_user, Role.waiter)).status_code == 403
+
+def test_login_admin_users_200(client, make_user):
+    assert client.get("/users/", headers=login_headers(client, make_user, Role.admin)).status_code == 200
+
+def test_login_waiter_mesas_200(client, make_user):
+    assert client.get("/tables", headers=login_headers(client, make_user, Role.waiter)).status_code == 200
+
+def test_login_customer_mesas_403(client, make_user):
+    assert client.get("/tables", headers=login_headers(client, make_user, Role.customer)).status_code == 403
+
+def test_login_customer_lee_menu_pero_no_escribe(client, make_user):
+    headers = login_headers(client, make_user, Role.customer)
+    assert client.get("/dishes/", headers=headers).status_code == 200
+    assert client.post("/categories/", headers=headers, json={"name": "X"}).status_code == 403
