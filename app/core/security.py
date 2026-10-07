@@ -10,6 +10,7 @@ implementacion real este en dev.
 
 TODO: eliminar cuando Carla mergee HU-05 a dev.
 """
+
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -36,4 +37,30 @@ def require_role(*roles: str):
     return dependency
 
 
-__all__ = ["get_current_user", "require_role"]
+def create_access_token(user_id: int, role: str = "admin") -> str:
+    """Stub: devuelve un token ficticio.
+
+    No es un JWT real. Solo sirve para que los tests importen la funcion
+    sin romper. Cuando Carla mergee HU-05 a dev, se sustituye por la
+    implementacion real.
+    """
+    return f"stub-token-user-{user_id}-role-{role}"
+
+
+def decode_access_token(token: str) -> int | None:
+    """Stub: extrae el user_id de un token ficticio.
+
+    Formato esperado: 'stub-token-user-<id>-role-<role>'.
+    Devuelve el id, o None si el token no sigue el formato.
+    """
+    if not token or not token.startswith("stub-token-user-"):
+        return None
+    try:
+        # "stub-token-user-1-role-admin" → ["stub", "token", "user", "1", "role", "admin"]
+        parts = token.split("-")
+        return int(parts[3])
+    except (IndexError, ValueError):
+        return None
+
+
+__all__ = ["create_access_token", "decode_access_token", "get_current_user", "require_role"]
