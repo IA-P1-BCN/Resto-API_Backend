@@ -6,15 +6,18 @@ pagination).
 """
 
 import logging
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 # ASSUMPTION E1: app.core.exceptions define NotFoundError y ConflictError,
 # ambas heredando de HTTPException. Ver PENDING-CONTRACTS.md.
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.dining_table import DiningTable
+from app.models.reservation import DEFAULT_DURATION_MIN, Reservation
 from app.schemas.dining_table import DiningTableCreate, DiningTableUpdate
+from app.services.reservations import CANCELLED, reservation_end
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,8 @@ logger = logging.getLogger(__name__)
 CONFLICT_CODE = "conflict"
 # ASSUMPTION: code por confirmar con Rita.
 NOT_FOUND_CODE = "not_found"
+# Una mesa fuera de servicio nunca se ofrece como disponible (HU-18).
+OUT_OF_SERVICE = "out_of_service"
 
 # El servicio nunca hace commit: la transacción la gestiona el caller
 # (router o fixture de test). Hace add/flush/delete y deja la sesión
@@ -107,3 +112,54 @@ def delete_table(db: Session, table_id: int) -> None:
     db.delete(table)
     db.flush()
     logger.info("Deleted table id=%s", table_id)
+
+
+def list_available_tables(
+    db: Session,
+    *,
+    reserved_at: datetime,
+    party_size: int,
+    duration_min: int = DEFAULT_DURATION_MIN,
+    skip: int = 0,
+    limit: int = 100,
+) -> tuple[list[DiningTable], int]:
+    """Return a page of tables free for `party_size` guests in the given slot (HU-18).
+
+    A table is available when it seats at least `party_size`, it is not
+    out of service and no active reservation (status != cancelled) overlaps
+    the half-open interval [reserved_at, reserved_at + duration_min), the
+    same rule used to reject overlapping reservations (HU-10).
+    Tables are ordered by capacity and number, so the best fit comes first.
+    """
+    # reserved_at se guarda sin zona horaria (UTC), igual que en las reservas.
+    if reserved_at.tzinfo is not None:
+        reserved_at = reserved_at.astimezone(UTC).replace(tzinfo=None)
+    ends_at = reserved_at + timedelta(minutes=duration_min)
+
+    overlapping = exists().where(
+        Reservation.table_id == DiningTable.id,
+        Reservation.status != CANCELLED,
+        Reservation.reserved_at < ends_at,
+        reservation_end(Reservation.reserved_at, Reservation.duration_min)
+        > reserved_at,
+    )
+    query = select(DiningTable).where(
+        DiningTable.capacity >= party_size,
+        DiningTable.status != OUT_OF_SERVICE,
+        ~overlapping,
+    )
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    items = db.scalars(
+        query.order_by(DiningTable.capacity, DiningTable.number)
+        .offset(skip)
+        .limit(limit)
+    ).all()
+    logger.info(
+        "Available tables at %s (+%s min) for %s guests: %s",
+        reserved_at,
+        duration_min,
+        party_size,
+        total,
+    )
+    return list(items), total
