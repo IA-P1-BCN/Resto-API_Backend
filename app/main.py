@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
 from app.database import Base, engine
 from app.models import model_category, model_dish, model_user  # noqa: F401
@@ -19,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+register_exception_handlers(app)
 
 app.include_router(router_user.router)
 app.include_router(router_category.router)

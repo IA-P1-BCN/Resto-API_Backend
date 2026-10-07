@@ -110,8 +110,10 @@ class TextFormatter(logging.Formatter):
     def __init__(self) -> None:
         super().__init__("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
 
-    def format(self, record: logging.LogRecord) -> str:
-        line = super().format(record)
+    def formatMessage(self, record: logging.LogRecord) -> str:
+        # formatMessage runs before the traceback is added, so the extra
+        # fields stay on the same line as the message.
+        line = super().formatMessage(record)
         extra = _extra_fields(record)
         if extra:
             line += " " + " ".join(f"{k}={v}" for k, v in extra.items())
