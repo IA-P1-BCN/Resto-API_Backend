@@ -1,32 +1,19 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
 from app.main import app
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
+# La BD de test y el override de get_db vienen de conftest.py.
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
-def setup_db():
-    Base.metadata.create_all(bind=engine)
+def setup_menu(admin_headers):
+    """Los tests de este fichero hacen las peticiones como admin y parten de dos categorías."""
+    client.headers.update(admin_headers)
     client.post("/categories/", json={"name": "Entrantes", "sort_order": 1})
     client.post("/categories/", json={"name": "Postres", "sort_order": 2})
     yield
-    Base.metadata.drop_all(bind=engine)
+    client.headers.pop("Authorization", None)
 
 def dish_data():
     return {"category_id": 1, "name": "Patatas bravas", "price": 5.5}
