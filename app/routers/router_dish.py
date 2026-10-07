@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.permissions import MENU_READ, MENU_WRITE, require_role
 from app.crud import crud_dish
 from app.database import get_db
 from app.schemas.schema_dish import DishCreate, DishOut, DishPage, DishUpdate
@@ -12,13 +13,16 @@ router = APIRouter(prefix="/dishes", tags=["dishes"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 
+READ = [Depends(require_role(*MENU_READ))]
+WRITE = [Depends(require_role(*MENU_WRITE))]
 
-@router.post("/", response_model=DishOut, status_code=201)
+
+@router.post("/", response_model=DishOut, status_code=201, dependencies=WRITE)
 def create_dish(dish: DishCreate, db: DbSession):
     return crud_dish.create_dish(db, dish)
 
 
-@router.get("/", response_model=DishPage)
+@router.get("/", response_model=DishPage, dependencies=READ)
 def list_dishes(
     db: DbSession,
     category_id: int | None = None,
@@ -37,7 +41,7 @@ def list_dishes(
     )
 
 
-@router.get("/{dish_id}", response_model=DishOut)
+@router.get("/{dish_id}", response_model=DishOut, dependencies=READ)
 def get_dish(dish_id: int, db: DbSession):
     dish = crud_dish.get_dish(db, dish_id)
     if not dish:
@@ -45,11 +49,11 @@ def get_dish(dish_id: int, db: DbSession):
     return dish
 
 
-@router.put("/{dish_id}", response_model=DishOut)
+@router.put("/{dish_id}", response_model=DishOut, dependencies=WRITE)
 def update_dish(dish_id: int, data: DishUpdate, db: DbSession):
     return crud_dish.update_dish(db, dish_id, data)
 
 
-@router.delete("/{dish_id}", status_code=204)
+@router.delete("/{dish_id}", status_code=204, dependencies=WRITE)
 def delete_dish(dish_id: int, db: DbSession):
     crud_dish.delete_dish(db, dish_id)

@@ -1,22 +1,13 @@
 """Integration tests for /tables (HU-09).
 
-Assumptions: see PENDING-CONTRACTS.md (A5, E1).
+Assumptions: see PENDING-CONTRACTS.md (E1).
 """
 
 from typing import Any
 
-import pytest
 from fastapi.testclient import TestClient
 
 MISSING_ID = 999_999
-
-# ASSUMPTION A5: mientras security.py sea el stub que devuelve un admin fijo
-# (y quizá no rechace peticiones sin token), los casos de 401 y 403 no pueden
-# pasar. strict=False para que el CI no falle.
-xfail_auth_stub = pytest.mark.xfail(
-    reason="auth es stub — ver A5 en PENDING-CONTRACTS.md",
-    strict=False,
-)
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -51,7 +42,6 @@ def _assert_error(response: Any, status_code: int, code: str) -> None:
 # --- GET /tables -----------------------------------------------------------------------------
 
 
-@xfail_auth_stub
 def test_list_tables_without_token_returns_401(client: TestClient) -> None:
     assert client.get("/tables").status_code == 401
 
@@ -71,7 +61,6 @@ def test_list_tables_as_waiter_returns_200(
     assert client.get("/tables", headers=_bearer(waiter_token)).status_code == 200
 
 
-@xfail_auth_stub
 def test_list_tables_as_customer_returns_403(
     client: TestClient, customer_token: str
 ) -> None:
@@ -111,7 +100,6 @@ def test_list_tables_page_zero_returns_422(
 # --- GET /tables/{table_id} ------------------------------------------------------------------
 
 
-@xfail_auth_stub
 def test_get_table_without_token_returns_401(client: TestClient) -> None:
     assert client.get(f"/tables/{MISSING_ID}").status_code == 401
 
@@ -146,7 +134,6 @@ def test_get_table_not_found_returns_404(client: TestClient, admin_token: str) -
 # --- POST /tables ----------------------------------------------------------------------------
 
 
-@xfail_auth_stub
 def test_create_table_without_token_returns_401(client: TestClient) -> None:
     response = client.post(
         "/tables", json={"number": 1, "capacity": 4, "location": "indoor"}
@@ -155,7 +142,6 @@ def test_create_table_without_token_returns_401(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-@xfail_auth_stub
 def test_create_table_as_waiter_returns_403(
     client: TestClient, waiter_token: str
 ) -> None:
@@ -230,12 +216,10 @@ def test_create_table_invalid_location_returns_422(
 FULL_UPDATE = {"number": 31, "capacity": 8, "location": "terrace", "status": "reserved"}
 
 
-@xfail_auth_stub
 def test_update_table_without_token_returns_401(client: TestClient) -> None:
     assert client.put(f"/tables/{MISSING_ID}", json=FULL_UPDATE).status_code == 401
 
 
-@xfail_auth_stub
 def test_update_table_as_waiter_returns_403(
     client: TestClient, admin_token: str, waiter_token: str
 ) -> None:
@@ -287,7 +271,6 @@ def test_update_table_to_taken_number_returns_409(
 # --- PATCH /tables/{table_id}/status ---------------------------------------------------------
 
 
-@xfail_auth_stub
 def test_change_status_without_token_returns_401(client: TestClient) -> None:
     response = client.patch(f"/tables/{MISSING_ID}/status", json={"status": "occupied"})
 
@@ -351,12 +334,10 @@ def test_change_status_invalid_value_returns_422(
 # --- DELETE /tables/{table_id} ---------------------------------------------------------------
 
 
-@xfail_auth_stub
 def test_delete_table_without_token_returns_401(client: TestClient) -> None:
     assert client.delete(f"/tables/{MISSING_ID}").status_code == 401
 
 
-@xfail_auth_stub
 def test_delete_table_as_waiter_returns_403(
     client: TestClient, admin_token: str, waiter_token: str
 ) -> None:

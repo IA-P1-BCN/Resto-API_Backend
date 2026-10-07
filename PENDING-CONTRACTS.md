@@ -25,27 +25,27 @@ Estados: ⏳ pendiente · ✅ confirmado · ⚠️ difiere (hay que adaptar el c
 
 | # | Firma asumida | Se usa en | Estado |
 |---|---|---|---|
-| M1 | `app.main` expone `app: FastAPI` | `tests/conftest.py:134` (fixture `client`) | ⏳ |
+| M1 | `app.main` expone `app: FastAPI` | `tests/conftest.py:134` (fixture `client`) | ✅ |
 | M2 | El lifespan de la app no necesita la BD de desarrollo para arrancar (en los tests solo se sobreescribe `get_db`) | `tests/conftest.py`, fixture `client` (`with TestClient(app)`) | ⏳ |
 
 ## 3. Modelos `roles` y `users` (Carla, C-01)
 
 | # | Firma asumida | Se usa en | Estado |
 |---|---|---|---|
-| U1 | `app/models/role.py` → `Role(id, name, description)` y `app/models/user.py` → `User(id, name, email, password_hash, phone, role_id, is_active, created_at)`, según §3.1 | `tests/conftest.py:96`, `:157` (fixture `create_user`) | ⏳ |
-| U2 | Nombres de rol: `admin`, `waiter`, `kitchen`, `customer` | `tests/conftest.py:37-38` (`ROLE_NAMES`) | ⏳ |
-| U3 | Los roles pueden venir sembrados por migración (C-03). El conftest hace get-or-create y funciona en los dos casos | `tests/conftest.py`, fixture `create_user` | ⏳ |
-| U4 | `password_hash` usa bcrypt (`hashpw` / `checkpw`) | `tests/conftest.py:173` | ⏳ |
+| U1 | `app/models/role.py` → `Role(id, name, description)` y `app/models/user.py` → `User(id, name, email, password_hash, phone, role_id, is_active, created_at)`, según §3.1 | `tests/conftest.py:96`, `:157` (fixture `create_user`) | ⚠️ No hay tabla `roles`: el rol es la columna `users.role` (texto) con el enum `Role` en `app/models/model_user.py`. El conftest ya está adaptado (`make_user`) |
+| U2 | Nombres de rol: `admin`, `waiter`, `kitchen`, `customer` | `tests/conftest.py:37-38` (`ROLE_NAMES`) | ✅ |
+| U3 | Los roles pueden venir sembrados por migración (C-03). El conftest hace get-or-create y funciona en los dos casos | `tests/conftest.py`, fixture `create_user` | ✅ No aplica (no hay tabla `roles`) |
+| U4 | `password_hash` usa bcrypt (`hashpw` / `checkpw`) | `tests/conftest.py:173` | ✅ |
 
 ## 4. Auth: `app/core/security.py` y `/auth/login` (Carla, C-03 / HU-04)
 
 | # | Firma asumida | Se usa en | Estado |
 |---|---|---|---|
-| A1 | `POST /auth/login` con JSON `{"email", "password"}` → `200 {"access_token": str, "token_type": "bearer"}`. Si usa `OAuth2PasswordRequestForm` (form `username`/`password`), cambiar `_login_token` | `tests/conftest.py:205` | ⏳ |
-| A2 | JWT HS256 firmado con `JWT_SECRET_KEY` | `tests/conftest.py:44-45` (`JWT_ALGORITHM`) | ⏳ |
-| A3 | Claims del JWT: `sub` = id del usuario (str), `role`, `exp`. Si `sub` es el email, ajustar `_stub_token` | `tests/conftest.py:193` | ⏳ |
-| A4 | **Stub de tokens activo** (`USE_STUB_TOKENS = True`). Poner a `False` cuando exista `/auth/login` y borrar `_stub_token` | `tests/conftest.py:41-43`, `:192` | ⏳ |
-| A5 | `get_current_user()` y `require_role(*roles)` con la firma de §5.2. **Ojo:** mientras siga el stub que «devuelve un admin fijo», los tests de 403 para `waiter`/`customer` fallarán. Es lo esperado hasta el 06/10.<br>**Firma exacta asumida:**<br>• `get_current_user`: dependencia sin parámetros de ruta (`Depends(get_current_user)`). Lee el Bearer token, devuelve el `User` del ORM y lanza 401 si el token falta o no es válido.<br>• `require_role(*roles: str)`: **fábrica** variádica que devuelve una dependencia. Esa dependencia depende de `get_current_user` (sin token → 401), devuelve el `User` y lanza 403 si su rol no está en `roles`.<br>El router solo importa `require_role` y la usa en `dependencies=[Depends(require_role(...))]`: GET y PATCH `/status` → `"admin", "waiter"`; POST, PUT y DELETE → `"admin"`.<br>Los 401 (6 tests) y 403 (4 tests) llevan el marcador `xfail_auth_stub` (`pytest.mark.xfail(..., strict=False)`) mientras el stub de `security.py` siga devolviendo un admin fijo o no rechace peticiones sin token. Al sustituirlo por la implementación real, quitar el marcador. Los 401 solo comprueban `status_code`, no el formato `{"detail","code"}` — ver E1 | `app/routers/tables.py:18-22`, `:37-38` (`ADMIN_ONLY`, `ADMIN_OR_WAITER`), `tests/integration/test_tables.py` (`xfail_auth_stub`) | ⏳ |
+| A1 | `POST /auth/login` con JSON `{"email", "password"}` → `200 {"access_token": str, "token_type": "bearer"}`. Si usa `OAuth2PasswordRequestForm` (form `username`/`password`), cambiar `_login_token` | `tests/conftest.py:205` | ⚠️ `/auth/login` usa `OAuth2PasswordRequestForm` (form `username`/`password`). Los tests generan el token con `create_access_token` y no pasan por el login |
+| A2 | JWT HS256 firmado con `JWT_SECRET_KEY` | `tests/conftest.py:44-45` (`JWT_ALGORITHM`) | ✅ |
+| A3 | Claims del JWT: `sub` = id del usuario (str), `role`, `exp`. Si `sub` es el email, ajustar `_stub_token` | `tests/conftest.py:193` | ⚠️ Claims: `sub` (id del usuario, str) y `exp`. No hay claim `role`: el rol se lee del usuario en la BD |
+| A4 | **Stub de tokens activo** (`USE_STUB_TOKENS = True`). Poner a `False` cuando exista `/auth/login` y borrar `_stub_token` | `tests/conftest.py:41-43`, `:192` | ✅ Stub eliminado: el conftest usa `app.core.security.create_access_token` |
+| A5 | `get_current_user()` y `require_role(*roles)` con la firma de §5.2. **Ojo:** mientras siga el stub que «devuelve un admin fijo», los tests de 403 para `waiter`/`customer` fallarán. Es lo esperado hasta el 06/10.<br>**Firma exacta asumida:**<br>• `get_current_user`: dependencia sin parámetros de ruta (`Depends(get_current_user)`). Lee el Bearer token, devuelve el `User` del ORM y lanza 401 si el token falta o no es válido.<br>• `require_role(*roles: str)`: **fábrica** variádica que devuelve una dependencia. Esa dependencia depende de `get_current_user` (sin token → 401), devuelve el `User` y lanza 403 si su rol no está en `roles`.<br>El router solo importa `require_role` y la usa en `dependencies=[Depends(require_role(...))]`: GET y PATCH `/status` → `"admin", "waiter"`; POST, PUT y DELETE → `"admin"`.<br>Los 401 (6 tests) y 403 (4 tests) llevan el marcador `xfail_auth_stub` (`pytest.mark.xfail(..., strict=False)`) mientras el stub de `security.py` siga devolviendo un admin fijo o no rechace peticiones sin token. Al sustituirlo por la implementación real, quitar el marcador. Los 401 solo comprueban `status_code`, no el formato `{"detail","code"}` — ver E1 | `app/routers/tables.py:18-22`, `:37-38` (`ADMIN_ONLY`, `ADMIN_OR_WAITER`), `tests/integration/test_tables.py` (`xfail_auth_stub`) | ✅ Implementación real en `app/core/permissions.py`: `require_role(*roles: Role)` y `get_current_user` devuelve el `User` del ORM. Marcador `xfail_auth_stub` eliminado |
 
 ## 5. Errores y paginación (Rita, R-04 / HU-11)
 
