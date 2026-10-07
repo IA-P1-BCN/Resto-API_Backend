@@ -707,6 +707,20 @@ def test_delete_as_kitchen_returns_403(client, book, kitchen_headers):
     assert response.status_code == 403
 
 
+@pytest.mark.parametrize(
+    ("method", "suffix"),
+    [("patch", ""), ("patch", "/cancel"), ("delete", "")],
+)
+def test_write_without_token_returns_401(client, book, method, suffix):
+    reservation = book()
+    url = f"/reservations/{reservation['id']}{suffix}"
+    kwargs = {"json": {"party_size": 1}} if (method, suffix) == ("patch", "") else {}
+
+    response = client.request(method.upper(), url, **kwargs)
+
+    assert response.status_code == 401
+
+
 def test_openapi_documents_reservations(client: TestClient):
     paths = client.get("/openapi.json").json()["paths"]
 

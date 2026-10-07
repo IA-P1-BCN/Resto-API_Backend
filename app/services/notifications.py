@@ -13,15 +13,22 @@ logger = logging.getLogger(__name__)
 
 def send_email(to: str, subject: str, html: str) -> None:
     """Envía un email. Con EMAIL_ENABLED=false solo lo registra en el log."""
-    if not settings.EMAIL_ENABLED:
-        logger.info("Email simulado (EMAIL_ENABLED=false) a=%s asunto=%r", to, subject)
-        return
+    try:
+        if not settings.EMAIL_ENABLED:
+            logger.info(
+                "Email simulado (EMAIL_ENABLED=false) a=%s asunto=%r", to, subject
+            )
+            return
 
-    # TODO(HU-19): llamar a POST https://api.brevo.com/v3/smtp/email con httpx
-    # usando BREVO_API_KEY y MAIL_FROM. Hasta entonces no se envía nada.
-    logger.warning(
-        "EMAIL_ENABLED=true pero el envío con Brevo aún no está implementado "
-        "(HU-19). Email no enviado a=%s asunto=%r",
-        to,
-        subject,
-    )
+        # TODO(HU-19): llamar a POST https://api.brevo.com/v3/smtp/email con httpx
+        # usando BREVO_API_KEY y MAIL_FROM. Hasta entonces no se envía nada.
+        logger.warning(
+            "EMAIL_ENABLED=true pero el envío con Brevo aún no está implementado "
+            "(HU-19). Email no enviado a=%s asunto=%r",
+            to,
+            subject,
+        )
+    except Exception:
+        # Plan §4.4 (HU-19): si el envío falla, la reserva sigue guardada y el
+        # error queda en el log.
+        logger.exception("Error enviando email a=%s asunto=%r", to, subject)
