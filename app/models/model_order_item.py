@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, ForeignKey, Numeric, String, CheckConstraint
+from sqlalchemy import CheckConstraint, Column, ForeignKey, Integer, Numeric, String
+
 from app.database import Base
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"

@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
+
 from jose import JWTError, jwt
+
 from app.config import settings
+
 
 def create_access_token(data: dict) -> str:
     """Crea un token JWT con expiración."""

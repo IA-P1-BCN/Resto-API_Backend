@@ -3,19 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, engine
-
-from app.models import model_category, model_dish, model_user  # noqa: F401
-from app.routers import router_category, router_dish, router_user
-
+from app.models import (  # noqa: F401
+    dining_table,
+    model_category,
+    model_dish,
+    model_order,
+    model_order_item,
+    model_user,
+)
+from app.routers import auth, router_category, router_dish, router_order, router_user
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Resto API", version="1.0.0")
-
-
-app.include_router(router_user.router)
-app.include_router(auth.router)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,8 +26,12 @@ app.add_middleware(
 )
 
 app.include_router(router_user.router)
+app.include_router(auth.router)
 app.include_router(router_category.router)
 app.include_router(router_dish.router)
+app.include_router(router_order.router)
+
+
 @app.get("/")
 def root():
     return {"message": "API Resto working"}
@@ -36,7 +40,3 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-@app.get("/")
-def root():
-    return {"message": "API Resto working"}

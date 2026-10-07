@@ -2,9 +2,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.main import app
-from app.database import Base, get_db
+
 from app.auth.jwt import create_access_token
+from app.database import Base, get_db
+from app.main import app
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_auth.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -28,8 +29,8 @@ def setup_db():
 
 def create_test_user():
     """Crea un usuario de prueba directamente en la BD."""
-    from app.models.model_user import User
     from app.crud.crud_user import hash_password
+    from app.models.model_user import User
     db = TestingSessionLocal()
     user = User(
         name="Test User",

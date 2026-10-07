@@ -1,23 +1,24 @@
-from pydantic import BaseModel
 from datetime import datetime
-from typing import List, Optional
 from decimal import Decimal
+
+from pydantic import BaseModel
+
 
 class OrderItemCreate(BaseModel):
     dish_id: int
     quantity: int
-    notes: Optional[str] = None
+    notes: str | None = None
 
 class OrderCreate(BaseModel):
     table_id: int
-    items: List[OrderItemCreate]
+    items: list[OrderItemCreate]
 
 class OrderItemOut(BaseModel):
     id: int
     dish_id: int
     quantity: int
     unit_price: Decimal
-    notes: Optional[str] = None
+    notes: str | None = None
 
     class Config:
         from_attributes = True
@@ -25,12 +26,12 @@ class OrderItemOut(BaseModel):
 class OrderOut(BaseModel):
     id: int
     table_id: int
-    waiter_id: Optional[int] = None
+    waiter_id: int | None = None
     status: str
     total: Decimal
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    items: List[OrderItemOut]
+    updated_at: datetime | None = None
+    items: list[OrderItemOut]
 
     class Config:
         from_attributes = True
