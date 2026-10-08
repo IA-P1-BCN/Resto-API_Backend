@@ -3,7 +3,12 @@
 La referencia completa e interactiva está en Swagger (`/docs`). Este documento resume el
 contrato por módulo. Formatos comunes:
 
-- **Errores:** `{"detail": str, "code": str}`
+- **Errores:** `{"detail": str, "code": str}` en todas las respuestas de error (HU-11).
+  - Validación de datos (`422`): `{"detail": "Invalid request data", "code": "validation_error",
+    "errors": [{"loc": [...], "msg": str, "type": str}]}`. `errors` indica qué campo falla.
+  - Error inesperado (`500`): `{"detail": "Internal server error", "code": "internal_error"}`.
+  - Codes genéricos: `not_found` (404), `conflict` (409), `forbidden` (403), `unauthorized`
+    (401), `method_not_allowed` (405), `unprocessable` (422 de reglas de negocio).
 - **Listados paginados:** `{"items": [], "total": int, "page": int, "size": int}` con
   `?page` (≥ 1, por defecto 1) y `?size` (1..100, por defecto 20)
 - **Autenticación:** cabecera `Authorization: Bearer <token>`. Sin token o con un token
@@ -131,11 +136,11 @@ así que no retrasa la respuesta. Con `EMAIL_ENABLED=false` solo se escribe en e
 | HTTP | `code` | Cuándo |
 |---|---|---|
 | 403 | `reservation_forbidden` | Un customer crea, filtra o edita el estado de una reserva ajena |
-| 403 | — | Rol sin permiso, o un customer accede a una reserva ajena (`ensure_owner_or_role`) |
+| 403 | `forbidden` | Rol sin permiso, o un customer accede a una reserva ajena (`ensure_owner_or_role`) |
 | 404 | `reservation_not_found` | La reserva no existe |
 | 404 | `table_not_found` | La mesa no existe |
 | 404 | `user_not_found` | El `user_id` indicado por admin o waiter no existe |
 | 409 | `reservation_conflict` | Solapamiento con otra reserva activa de la mesa |
 | 409 | `reservation_not_cancellable` | Se intenta cancelar una reserva que no está `confirmed` |
 | 422 | `party_size_exceeds_capacity` | `party_size` supera la capacidad de la mesa |
-| 422 | — | Validación de Pydantic (campos que faltan, `party_size <= 0`, campos desconocidos…) |
+| 422 | `validation_error` | Validación de Pydantic (campos que faltan, `party_size <= 0`, campos desconocidos…) |
