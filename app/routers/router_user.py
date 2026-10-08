@@ -3,11 +3,16 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.permissions import USERS, require_role
 from app.crud import crud_user
 from app.database import get_db
 from app.schemas.schema_user import UserCreate, UserOut, UserUpdate
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(
+    prefix="/users",
+    tags=["users"],
+    dependencies=[Depends(require_role(*USERS))],
+)
 
 DbSession = Annotated[Session, Depends(get_db)]
 

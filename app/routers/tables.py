@@ -5,6 +5,7 @@ Assumptions: see PENDING-CONTRACTS.md (A5 for auth, D3/D4 for the
 session and transactions, P1 for pagination, E1 for exceptions).
 """
 
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -14,19 +15,17 @@ from sqlalchemy.orm import Session
 # ASSUMPTION D3: app.core.database expone get_db (generador sync de Session
 # que NO hace commit; solo yield + close). Ver PENDING-CONTRACTS.md.
 from app.core.database import get_db
-
-# ASSUMPTION A5: app.core.security expone get_current_user y
-# require_role(*roles). Ver PENDING-CONTRACTS.md.
-# ASSUMPTION A5: el stub de auth devuelve siempre admin, por lo que
-# los tests de 403 fallarán hasta que Carla lo sustituya.
-from app.core.security import require_role
+from app.core.permissions import TABLES, require_role
 from app.models.dining_table import DiningTable
+from app.models.model_user import Role
+from app.models.reservation import DEFAULT_DURATION_MIN
 from app.schemas.dining_table import (
     DiningTableCreate,
     DiningTableRead,
     DiningTableStatusUpdate,
     DiningTableUpdate,
 )
+from app.schemas.reservation import MAX_DURATION_MIN
 from app.services import dining_table_service
 
 router = APIRouter(prefix="/tables", tags=["tables"])
@@ -34,8 +33,8 @@ router = APIRouter(prefix="/tables", tags=["tables"])
 DbSession = Annotated[Session, Depends(get_db)]
 
 # require_role ya depende de get_current_user: sin token → 401, rol no permitido → 403.
-ADMIN_ONLY = [Depends(require_role("admin"))]
-ADMIN_OR_WAITER = [Depends(require_role("admin", "waiter"))]
+ADMIN_ONLY = [Depends(require_role(Role.admin))]
+ADMIN_OR_WAITER = [Depends(require_role(*TABLES))]
 
 
 # ASSUMPTION P1: paginación inline mientras no conozcamos el helper de
@@ -64,6 +63,59 @@ def list_tables(
 ) -> DiningTablePage:
     items, total = dining_table_service.list_tables(
         db, skip=(page - 1) * size, limit=size
+    )
+    return DiningTablePage(
+        items=[DiningTableRead.model_validate(item) for item in items],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
+# Debe declararse antes de /{table_id}: si no, "available" se tomaría como id.
+@router.get(
+    "/available",
+    response_model=DiningTablePage,
+    status_code=status.HTTP_200_OK,
+    dependencies=ADMIN_OR_WAITER,
+    summary="List available dining tables",
+    description="Tables that seat at least `party_size` guests, are not "
+    "`out_of_service` and have no active reservation overlapping "
+    "[`reserved_at`, `reserved_at` + `duration_min`). Ordered by capacity, so "
+    "the best fit comes first. Roles: admin, waiter.",
+)
+def list_available_tables(
+    db: DbSession,
+    reserved_at: Annotated[
+        datetime,
+        Query(
+            description="Start of the slot. Without time zone; if one is sent "
+            "it is converted to UTC.",
+            examples=["2026-10-10T21:00:00"],
+        ),
+    ],
+    party_size: Annotated[
+        int, Query(gt=0, description="Number of guests.", examples=[4])
+    ],
+    duration_min: Annotated[
+        int,
+        Query(
+            gt=0,
+            le=MAX_DURATION_MIN,
+            description="Length of the slot in minutes.",
+            examples=[DEFAULT_DURATION_MIN],
+        ),
+    ] = DEFAULT_DURATION_MIN,
+    page: Annotated[int, Query(ge=1, description="Page number (1-based).")] = 1,
+    size: Annotated[int, Query(ge=1, le=100, description="Items per page.")] = 20,
+) -> DiningTablePage:
+    items, total = dining_table_service.list_available_tables(
+        db,
+        reserved_at=reserved_at,
+        party_size=party_size,
+        duration_min=duration_min,
+        skip=(page - 1) * size,
+        limit=size,
     )
     return DiningTablePage(
         items=[DiningTableRead.model_validate(item) for item in items],

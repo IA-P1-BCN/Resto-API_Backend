@@ -42,7 +42,7 @@ services:
       DATABASE_URL: postgresql+psycopg://restoapi:restoapi@db:5432/restoapi
       ENVIRONMENT: development
       ALLOWED_ORIGINS: http://localhost:5173
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-cambiar}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-cambiar-en-produccion-0000}
       EMAIL_ENABLED: "false"
     ports:
       - "8000:8000"

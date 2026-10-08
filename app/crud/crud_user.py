@@ -9,6 +9,9 @@ from app.schemas.schema_user import UserCreate, UserUpdate
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
 def get_user(db: Session, user_id: int):
     return db.query(User).filter(User.id == user_id).first()
 
@@ -27,6 +30,7 @@ def create_user(db: Session, user: UserCreate):
         email=user.email,
         password_hash=hash_password(user.password),
         phone=user.phone,
+        role=user.role.value,
     )
     db.add(db_user)
     db.commit()
@@ -45,7 +49,7 @@ def update_user(db: Session, user_id: int, data: UserUpdate):
     ):
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    for field, value in data.model_dump(mode="json", exclude_unset=True).items():
         if field == "password":
             db_user.password_hash = hash_password(value)
         else:
