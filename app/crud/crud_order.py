@@ -66,3 +66,33 @@ def get_orders(db: Session, status: str | None = None, table_id: int | None = No
 
 def get_order(db: Session, order_id: int):
     return db.query(Order).filter(Order.id == order_id).first()
+
+
+VALID_TRANSITIONS = {
+    "pending": {"in_kitchen", "cancelled"},
+    "in_kitchen": {"served", "cancelled"},
+    "served": {"paid", "cancelled"},
+    "paid": set(),
+    "cancelled": set(),
+}
+
+
+def update_order_status(db: Session, order_id: int, new_status: str):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if new_status == order.status:
+        return order
+
+    allowed = VALID_TRANSITIONS.get(order.status, set())
+    if new_status not in allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot change status from '{order.status}' to '{new_status}'",
+        )
+
+    order.status = new_status
+    db.commit()
+    db.refresh(order)
+    return order

@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -22,6 +23,10 @@ class OrderItemOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class OrderStatusUpdate(BaseModel):
+    status: Literal["pending", "in_kitchen", "served", "paid", "cancelled"]
+
 
 class OrderOut(BaseModel):
     id: int
