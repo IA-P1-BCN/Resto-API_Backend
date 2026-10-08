@@ -9,6 +9,7 @@ from app.models import (  # noqa: F401
     dining_table,
     model_category,
     model_dish,
+    model_invoice,
     model_order,
     model_order_item,
     model_user,
