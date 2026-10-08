@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.permissions import MENU_READ, MENU_WRITE, require_role
@@ -28,10 +28,7 @@ def list_categories(db: DbSession):
 
 @router.get("/{category_id}", response_model=CategoryOut, dependencies=READ)
 def get_category(category_id: int, db: DbSession):
-    category = crud_category.get_category(db, category_id)
-    if not category:
-        raise HTTPException(status_code=404, detail="Category not found")
-    return category
+    return crud_category.get_category_or_404(db, category_id)
 
 
 @router.put("/{category_id}", response_model=CategoryOut, dependencies=WRITE)

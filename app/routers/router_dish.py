@@ -1,13 +1,14 @@
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.core.pagination import Page, PageParamsDep
 from app.core.permissions import MENU_READ, MENU_WRITE, require_role
 from app.crud import crud_dish
 from app.database import get_db
-from app.schemas.schema_dish import DishCreate, DishOut, DishPage, DishUpdate
+from app.schemas.schema_dish import DishCreate, DishOut, DishUpdate
 
 router = APIRouter(prefix="/dishes", tags=["dishes"])
 
@@ -22,31 +23,26 @@ def create_dish(dish: DishCreate, db: DbSession):
     return crud_dish.create_dish(db, dish)
 
 
-@router.get("/", response_model=DishPage, dependencies=READ)
+@router.get("/", response_model=Page[DishOut], dependencies=READ)
 def list_dishes(
     db: DbSession,
+    params: PageParamsDep,
     category_id: int | None = None,
     is_available: bool | None = None,
     max_price: Annotated[Decimal | None, Query(ge=0)] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
-    size: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
     return crud_dish.get_dishes(
         db,
+        params,
         category_id=category_id,
         is_available=is_available,
         max_price=max_price,
-        page=page,
-        size=size,
     )
 
 
 @router.get("/{dish_id}", response_model=DishOut, dependencies=READ)
 def get_dish(dish_id: int, db: DbSession):
-    dish = crud_dish.get_dish(db, dish_id)
-    if not dish:
-        raise HTTPException(status_code=404, detail="Dish not found")
-    return dish
+    return crud_dish.get_dish_or_404(db, dish_id)
 
 
 @router.put("/{dish_id}", response_model=DishOut, dependencies=WRITE)

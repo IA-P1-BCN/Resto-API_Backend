@@ -1,11 +1,21 @@
 """Paginación genérica con el formato {"items", "total", "page", "size"} (§5.2).
-
-TODO(Rita, R-04): revisar límites de size por defecto cuando se cierre HU-11.
+ 
+Contrato P1 (R-04 / HU-11), igual para toda la API:
+- Query params: ``page`` >= 1 (por defecto 1) y ``size`` de 1 a 100 (por defecto 20).
+- Respuesta: ``Page[Schema]`` con ``items``, ``total``, ``page`` y ``size``.
+- Una página más allá de la última devuelve ``items`` vacío (no es un error).
+ 
+Uso en un router::
+ 
+    @router.get("", response_model=Page[DishOut])
+    def list_dishes(db: DbSession, params: PageParamsDep) -> Page[DishOut]:
+        stmt = select(Dish).order_by(Dish.id)
+        return paginate(db, stmt, params, DishOut)
 """
 
 from typing import Annotated, Any, Generic, TypeVar
 
-from fastapi import Query
+from fastapi import Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
@@ -21,8 +31,10 @@ class Page(BaseModel, Generic[ItemT]):
 
     items: list[ItemT] = Field(description="Elementos de esta página.")
     total: int = Field(description="Número total de elementos.", examples=[42])
-    page: int = Field(description="Página actual (empieza en 1).", examples=[1])
-    size: int = Field(description="Tamaño de página.", examples=[DEFAULT_PAGE_SIZE])
+    page: int = Field(
+        description="Página actual (empieza en 1).", examples=[1])
+    size: int = Field(description="Tamaño de página.",
+                      examples=[DEFAULT_PAGE_SIZE])
 
 
 class PageParams(BaseModel):
@@ -46,11 +58,22 @@ def page_params(
     return PageParams(page=page, size=size)
 
 
+# Atajo para los routers: `params: PageParamsDep` en vez de
+# `params: Annotated[PageParams, Depends(page_params)]`.
+PageParamsDep = Annotated[PageParams, Depends(page_params)]
+
+
 def paginate(
     db: Session, stmt: Select[Any], params: PageParams, schema: type[ItemT]
 ) -> Page[ItemT]:
-    """Ejecuta `stmt` paginado y convierte cada fila ORM con `schema`."""
-    total = db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery()))
+    """Ejecuta `stmt` paginado y convierte cada fila ORM con `schema`.
+
+    `stmt` debe llevar `order_by`: sin orden fijo, la base de datos puede
+    devolver las filas en otro orden en cada consulta y repetir o saltarse
+    elementos entre páginas.
+    """
+    total = db.scalar(select(func.count()).select_from(
+        stmt.order_by(None).subquery()))
     rows = db.scalars(stmt.offset(params.offset).limit(params.size)).all()
     return Page[schema](
         items=[schema.model_validate(row) for row in rows],

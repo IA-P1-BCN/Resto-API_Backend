@@ -1,45 +1,48 @@
 from decimal import Decimal
 
-from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.crud.crud_category import get_category
+from app.core.exceptions import NotFoundError
+from app.core.pagination import Page, PageParams, paginate
+from app.crud.crud_category import get_category_or_404
 from app.models.model_dish import Dish
-from app.schemas.schema_dish import DishCreate, DishUpdate
+from app.schemas.schema_dish import DishCreate, DishOut, DishUpdate
 
 
 def get_dish(db: Session, dish_id: int):
     return db.query(Dish).filter(Dish.id == dish_id).first()
 
+
+def get_dish_or_404(db: Session, dish_id: int) -> Dish:
+    """Return the dish or raise NotFoundError (404)."""
+    db_dish = get_dish(db, dish_id)
+    if not db_dish:
+        raise NotFoundError("Dish not found")
+    return db_dish
+
+
 def get_dishes(
     db: Session,
+    params: PageParams,
     category_id: int | None = None,
     is_available: bool | None = None,
     max_price: Decimal | None = None,
-    page: int = 1,
-    size: int = 20,
-):
-    query = db.query(Dish)
+) -> Page[DishOut]:
+    stmt = select(Dish)
 
     if category_id is not None:
-        query = query.filter(Dish.category_id == category_id)
+        stmt = stmt.where(Dish.category_id == category_id)
     if is_available is not None:
-        query = query.filter(Dish.is_available == is_available)
+        stmt = stmt.where(Dish.is_available == is_available)
     if max_price is not None:
-        query = query.filter(Dish.price <= max_price)
+        stmt = stmt.where(Dish.price <= max_price)
 
-    total = query.count()
-    items = (
-        query.order_by(Dish.id)
-        .offset((page - 1) * size)
-        .limit(size)
-        .all()
-    )
-    return {"items": items, "total": total, "page": page, "size": size}
+    return paginate(db, stmt.order_by(Dish.id), params, DishOut)
+
 
 def create_dish(db: Session, dish: DishCreate):
-    if not get_category(db, dish.category_id):
-        raise HTTPException(status_code=404, detail="Category not found")
+    get_category_or_404(db, dish.category_id)
 
     db_dish = Dish(**dish.model_dump())
     db.add(db_dish)
@@ -47,13 +50,12 @@ def create_dish(db: Session, dish: DishCreate):
     db.refresh(db_dish)
     return db_dish
 
-def update_dish(db: Session, dish_id: int, data: DishUpdate):
-    db_dish = get_dish(db, dish_id)
-    if not db_dish:
-        raise HTTPException(status_code=404, detail="Dish not found")
 
-    if data.category_id is not None and not get_category(db, data.category_id):
-        raise HTTPException(status_code=404, detail="Category not found")
+def update_dish(db: Session, dish_id: int, data: DishUpdate):
+    db_dish = get_dish_or_404(db, dish_id)
+
+    if data.category_id is not None:
+        get_category_or_404(db, data.category_id)
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(db_dish, field, value)
@@ -62,10 +64,9 @@ def update_dish(db: Session, dish_id: int, data: DishUpdate):
     db.refresh(db_dish)
     return db_dish
 
+
 def delete_dish(db: Session, dish_id: int):
-    db_dish = get_dish(db, dish_id)
-    if not db_dish:
-        raise HTTPException(status_code=404, detail="Dish not found")
+    db_dish = get_dish_or_404(db, dish_id)
 
     db.delete(db_dish)
     db.commit()

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.exceptions import register_exception_handlers
+from app.core.logging import setup_logging
 from app.database import Base, engine
 from app.models import (  # noqa: F401
     dining_table,
@@ -23,13 +24,15 @@ from app.routers import (
     tables,
 )
 
+setup_logging()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Resto API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()],
+    allow_origins=[o.strip()
+                   for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
