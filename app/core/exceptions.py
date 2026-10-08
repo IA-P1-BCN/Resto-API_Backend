@@ -1,74 +1,161 @@
-"""Excepciones de la API con el formato de error {"detail": str, "code": str} (§5.2).
-
-Heredan de HTTPException: aunque no se registre el handler, FastAPI responde con
-el status correcto. Con el handler (register_exception_handlers) el cuerpo
-incluye además el campo "code".
-TODO(Rita, R-04 / HU-11): completar con logging estructurado y el resto de errores.
+"""API errors with the common format {"detail": str, "code": str} (R-04 / HU-11).
+ 
+- Business errors: raise NotFoundError, ConflictError, ForbiddenError or
+  UnprocessableError from services/crud. Each class sets its status code.
+- Global handlers (registered in main.py with register_exception_handlers):
+  * AppError and any HTTPException  -> its status, {"detail", "code"}
+  * Request validation errors (422) -> {"detail", "code", "errors": [...]}
+  * Any unexpected exception (500)  -> generic message; full traceback in logs
 """
-
+ 
+import logging
+ 
 from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-
-NOT_FOUND_CODE = "not_found"
-CONFLICT_CODE = "conflict"
+from starlette.exceptions import HTTPException as StarletteHTTPException
+ 
+logger = logging.getLogger(__name__)
+ 
+BAD_REQUEST_CODE = "bad_request"
+UNAUTHORIZED_CODE = "unauthorized"
 FORBIDDEN_CODE = "forbidden"
+NOT_FOUND_CODE = "not_found"
+METHOD_NOT_ALLOWED_CODE = "method_not_allowed"
+CONFLICT_CODE = "conflict"
 UNPROCESSABLE_CODE = "unprocessable"
-
-
+VALIDATION_ERROR_CODE = "validation_error"
+INTERNAL_ERROR_CODE = "internal_error"
+HTTP_ERROR_CODE = "http_error"
+ 
+# Code used when a plain HTTPException (without code) reaches the handler.
+CODES_BY_STATUS = {
+    status.HTTP_400_BAD_REQUEST: BAD_REQUEST_CODE,
+    status.HTTP_401_UNAUTHORIZED: UNAUTHORIZED_CODE,
+    status.HTTP_403_FORBIDDEN: FORBIDDEN_CODE,
+    status.HTTP_404_NOT_FOUND: NOT_FOUND_CODE,
+    status.HTTP_405_METHOD_NOT_ALLOWED: METHOD_NOT_ALLOWED_CODE,
+    status.HTTP_409_CONFLICT: CONFLICT_CODE,
+    status.HTTP_422_UNPROCESSABLE_CONTENT: UNPROCESSABLE_CODE,
+}
+ 
+VALIDATION_ERROR_DETAIL = "Invalid request data"
+INTERNAL_ERROR_DETAIL = "Internal server error"
+ 
+ 
 class AppError(HTTPException):
-    """Error de negocio con un código legible por el frontend."""
-
+    """Business error with a code the frontend can read."""
+ 
     status_code: int = status.HTTP_400_BAD_REQUEST
-    default_code: str = "bad_request"
-
+    default_code: str = BAD_REQUEST_CODE
+ 
     def __init__(self, detail: str, *, code: str | None = None) -> None:
         super().__init__(status_code=self.status_code, detail=detail)
         self.code = code or self.default_code
-
-
+ 
+ 
 class NotFoundError(AppError):
     status_code = status.HTTP_404_NOT_FOUND
     default_code = NOT_FOUND_CODE
-
-
+ 
+ 
 class ConflictError(AppError):
     status_code = status.HTTP_409_CONFLICT
     default_code = CONFLICT_CODE
-
-
+ 
+ 
 class ForbiddenError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
     default_code = FORBIDDEN_CODE
-
-
+ 
+ 
 class UnprocessableError(AppError):
-    """Datos bien formados pero que incumplen una regla de negocio (422)."""
-
+    """Well-formed data that breaks a business rule (422)."""
+ 
     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     default_code = UNPROCESSABLE_CODE
-
-
+ 
+ 
 class ReservationConflict(ConflictError):
-    """La reserva se solapa con otra reserva activa de la misma mesa."""
-
+    """The reservation overlaps another active reservation of the same table."""
+ 
     default_code = "reservation_conflict"
-
-
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+ 
+ 
+def _error_body(detail: object, code: str) -> dict:
+    return {"detail": detail if isinstance(detail, str) else str(detail), "code": code}
+ 
+ 
+def _request_info(request: Request) -> dict:
+    return {"method": request.method, "path": request.url.path}
+ 
+ 
+async def http_error_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    """AppError and any HTTPException: same status, body {"detail", "code"}."""
+    code = getattr(exc, "code", None) or CODES_BY_STATUS.get(
+        exc.status_code, HTTP_ERROR_CODE
+    )
+    logger.warning(
+        "HTTP error",
+        extra={"status_code": exc.status_code, "code": code, **_request_info(request)},
+    )
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail, "code": exc.code},
-        headers=exc.headers,
+        content=_error_body(exc.detail, code),
+        headers=getattr(exc, "headers", None),
     )
-
-
+ 
+ 
+async def validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """422 from FastAPI/Pydantic: generic detail plus the list of field errors."""
+    errors = jsonable_encoder(exc.errors(), exclude={"input", "ctx", "url"})
+    logger.warning(
+        "Validation error",
+        extra={
+            "status_code": status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "code": VALIDATION_ERROR_CODE,
+            "fields": [".".join(str(p) for p in e.get("loc", ())) for e in errors],
+            **_request_info(request),
+        },
+    )
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={
+            **_error_body(VALIDATION_ERROR_DETAIL, VALIDATION_ERROR_CODE),
+            "errors": errors,
+        },
+    )
+ 
+ 
+async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """500: the client gets a generic message; the traceback goes to the logs."""
+    logger.exception("Unhandled error", extra=_request_info(request))
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=_error_body(INTERNAL_ERROR_DETAIL, INTERNAL_ERROR_CODE),
+    )
+ 
+ 
+# Kept for compatibility with the first version of this module.
+app_error_handler = http_error_handler
+ 
+ 
 def register_exception_handlers(app: FastAPI) -> None:
-    app.add_exception_handler(AppError, app_error_handler)
-
-
+    """Connect the global handlers to the app. Call it once in main.py."""
+    app.add_exception_handler(StarletteHTTPException, http_error_handler)
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(Exception, unhandled_error_handler)
+ 
+ 
 class ErrorResponse(BaseModel):
-    """Formato de error de la API (para documentar las respuestas en Swagger)."""
-
-    detail: str = Field(examples=["La reserva 42 no existe"])
+    """API error format (to document responses in Swagger)."""
+ 
+    detail: str = Field(examples=["Dish 42 not found"])
     code: str = Field(examples=[NOT_FOUND_CODE])
+
