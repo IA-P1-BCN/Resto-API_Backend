@@ -20,6 +20,7 @@ from app.routers import (
     reservations,
     router_category,
     router_dish,
+    router_invoice,
     router_order,
     router_user,
     tables,
@@ -46,6 +47,7 @@ app.include_router(router_user.router)
 app.include_router(router_category.router)
 app.include_router(router_dish.router)
 app.include_router(router_order.router)
+app.include_router(router_invoice.router)
 app.include_router(tables.router)
 app.include_router(reservations.router)
 
