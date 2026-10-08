@@ -22,6 +22,7 @@ from app.routers import (
     router_order,
     router_user,
     tables,
+    websocket_kitchen,
 )
 
 setup_logging()
@@ -47,6 +48,7 @@ app.include_router(router_dish.router)
 app.include_router(router_order.router)
 app.include_router(tables.router)
 app.include_router(reservations.router)
+app.include_router(websocket_kitchen.router)
 
 
 @app.get("/")
