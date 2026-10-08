@@ -3,9 +3,14 @@
 Assumptions: see PENDING-CONTRACTS.md (E1).
 """
 
+from datetime import datetime
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from app.models.reservation import Reservation
 
 MISSING_ID = 999_999
 
@@ -366,3 +371,119 @@ def test_delete_table_not_found_returns_404(
     response = client.delete(f"/tables/{MISSING_ID}", headers=_bearer(admin_token))
 
     _assert_error(response, 404, "not_found")
+
+
+# --- GET /tables/available (HU-18) -----------------------------------------------------------
+
+SLOT = {"reserved_at": "2026-10-10T20:00:00", "party_size": 2}
+
+
+def _book_table(db: Session, make_user, table_id: int, reserved_at: str) -> None:
+    db.add(
+        Reservation(
+            user_id=make_user("customer", email="reserva@test.com").id,
+            table_id=table_id,
+            reserved_at=datetime.fromisoformat(reserved_at),
+            duration_min=90,
+            party_size=2,
+        )
+    )
+    db.commit()
+
+
+def test_available_tables_without_token_returns_401(client: TestClient) -> None:
+    assert client.get("/tables/available", params=SLOT).status_code == 401
+
+
+def test_available_tables_as_kitchen_returns_403(
+    client: TestClient, auth_headers
+) -> None:
+    response = client.get(
+        "/tables/available", params=SLOT, headers=auth_headers("kitchen")
+    )
+
+    assert response.status_code == 403
+
+
+def test_available_tables_as_customer_returns_403(
+    client: TestClient, customer_token: str
+) -> None:
+    response = client.get(
+        "/tables/available", params=SLOT, headers=_bearer(customer_token)
+    )
+
+    assert response.status_code == 403
+
+
+def test_available_tables_as_waiter_excludes_booked_and_small_tables(
+    client: TestClient, db: Session, make_user, admin_token: str, waiter_token: str
+) -> None:
+    admin = _bearer(admin_token)
+    booked = _create_table(client, admin, number=60, capacity=4)
+    _create_table(client, admin, number=61, capacity=2)
+    free = _create_table(client, admin, number=62, capacity=4)
+    _book_table(db, make_user, booked["id"], "2026-10-10T19:30:00")
+
+    response = client.get(
+        "/tables/available",
+        params={"reserved_at": "2026-10-10T20:00:00", "party_size": 3},
+        headers=_bearer(waiter_token),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"items": [free], "total": 1, "page": 1, "size": 20}
+
+
+def test_available_tables_as_admin_after_booking_ends_returns_table(
+    client: TestClient, db: Session, make_user, admin_token: str
+) -> None:
+    headers = _bearer(admin_token)
+    table = _create_table(client, headers, number=63)
+    _book_table(db, make_user, table["id"], "2026-10-10T18:30:00")
+
+    response = client.get("/tables/available", params=SLOT, headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert [item["id"] for item in response.json()["items"]] == [table["id"]]
+
+
+def test_available_tables_paginates(client: TestClient, admin_token: str) -> None:
+    headers = _bearer(admin_token)
+    for number in range(64, 67):
+        _create_table(client, headers, number=number)
+
+    response = client.get(
+        "/tables/available", params={**SLOT, "page": 2, "size": 2}, headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["total"], body["page"], body["size"]) == (3, 2, 2)
+    assert [item["number"] for item in body["items"]] == [66]
+
+
+def test_available_tables_without_params_returns_422(
+    client: TestClient, admin_token: str
+) -> None:
+    response = client.get("/tables/available", headers=_bearer(admin_token))
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {**SLOT, "party_size": 0},
+        {**SLOT, "reserved_at": "not-a-date"},
+        {**SLOT, "duration_min": 0},
+        {**SLOT, "duration_min": 481},
+    ],
+)
+def test_available_tables_invalid_params_returns_422(
+    client: TestClient, admin_token: str, params: dict[str, Any]
+) -> None:
+    response = client.get(
+        "/tables/available", params=params, headers=_bearer(admin_token)
+    )
+
+    assert response.status_code == 422
