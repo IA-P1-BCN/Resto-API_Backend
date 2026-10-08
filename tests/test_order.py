@@ -2,8 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.main import app
+
 from app.database import Base, get_db
+from app.main import app
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_orders.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -27,15 +28,21 @@ def setup_db():
 
 def create_test_data():
     from app.models.dining_table import DiningTable
+    from app.models.model_category import Category
     from app.models.model_dish import Dish
     db = TestingSessionLocal()
-    table = DiningTable(number=1, capacity=4)
-    dish = Dish(name="Pasta", price=10.50, available=True)
+    table = DiningTable(number=1, capacity=4, location="terrace")
+    category = Category(name="Principales")
+    db.add(category)
+    db.flush()
+    dish = Dish(name="Pasta", price=10.50, is_available=True, category_id=category.id)
     db.add(table)
     db.add(dish)
     db.commit()
+    table_id = table.id
+    dish_id = dish.id
     db.close()
-    return table.id, dish.id
+    return table_id, dish_id
 
 def test_create_order_success():
     table_id, dish_id = create_test_data()
@@ -45,8 +52,8 @@ def test_create_order_success():
     })
     assert r.status_code == 201
     data = r.json()
-    assert data["total"] == 21.00
-    assert data["items"][0]["unit_price"] == 10.50
+    assert float(data["total"]) == 21.00
+    assert float(data["items"][0]["unit_price"]) == 10.50
     assert data["items"][0]["notes"] == "sin cebolla"
 
 def test_create_order_dish_not_available():
@@ -54,7 +61,7 @@ def test_create_order_dish_not_available():
     from app.models.model_dish import Dish
     db = TestingSessionLocal()
     dish = db.query(Dish).filter(Dish.id == dish_id).first()
-    dish.available = False
+    dish.is_available = False
     db.commit()
     db.close()
 

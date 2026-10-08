@@ -8,6 +8,8 @@ from app.models import (  # noqa: F401
     dining_table,
     model_category,
     model_dish,
+    model_order,
+    model_order_item,
     model_user,
     reservation,
 )
@@ -16,6 +18,7 @@ from app.routers import (
     reservations,
     router_category,
     router_dish,
+    router_order,
     router_user,
     tables,
 )
@@ -38,6 +41,7 @@ app.include_router(auth.router)
 app.include_router(router_user.router)
 app.include_router(router_category.router)
 app.include_router(router_dish.router)
+app.include_router(router_order.router)
 app.include_router(tables.router)
 app.include_router(reservations.router)
 
