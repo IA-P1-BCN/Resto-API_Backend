@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime
 
+import httpx
 import pytest
 
 from app.config import settings
@@ -104,11 +105,13 @@ def test_send_email_disabled_only_logs(monkeypatch, caplog):
 
 def test_send_email_enabled_does_not_raise(monkeypatch, caplog):
     monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "")
+    monkeypatch.setattr(settings, "MAIL_FROM", "")
 
     with caplog.at_level(logging.WARNING, logger=notifications.__name__):
         notifications.send_email("a@test.com", "Asunto", "<p>Hola</p>")
 
-    assert "HU-19" in caplog.text
+    assert "falta BREVO_API_KEY o MAIL_FROM" in caplog.text
 
 
 def test_send_email_never_raises(monkeypatch, caplog):
@@ -282,3 +285,117 @@ def test_update_over_capacity_raises_and_rolls_back(checks):
 
     assert db.rolled_back and not db.committed
     assert reservation.party_size == 2
+
+
+# --- Emails de reserva (HU-19) ---------------------------------------------------------
+
+MISSING_USER_ID = 999_999
+
+
+def test_confirmation_email_devuelve_datos(db, make_user):
+    user = make_user("customer", email="cliente@test.com")
+    table = DiningTable(number=12, capacity=4, location="indoor")
+    db.add(table)
+    db.flush()
+    reservation = Reservation(
+        user_id=user.id,
+        table_id=table.id,
+        reserved_at=_at(21, 0),
+        duration_min=90,
+        party_size=4,
+    )
+    db.add(reservation)
+    db.commit()
+
+    email = service.confirmation_email(db, reservation)
+
+    assert email is not None
+    to, subject, html = email
+    assert to == "cliente@test.com"
+    assert "confirmada" in subject
+    assert "10/10/2026" in html
+    assert "21:00" in html
+    assert "mesa 12" in html
+    assert "4 personas" in html
+
+
+def test_confirmation_email_sin_usuario_devuelve_none(db):
+    reservation = Reservation(
+        user_id=MISSING_USER_ID,
+        table_id=1,
+        reserved_at=_at(21, 0),
+        duration_min=90,
+        party_size=2,
+    )
+
+    assert service.confirmation_email(db, reservation) is None
+
+
+class FakeResponse:
+    """Respuesta mínima de httpx: 200 y raise_for_status sin efecto."""
+
+    status_code = 200
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+@pytest.fixture
+def brevo_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "MAIL_FROM", "reservas@restoapi.test")
+
+
+def test_send_email_brevo_ok(monkeypatch, caplog, brevo_enabled):
+    calls: list[tuple[tuple, dict]] = []
+
+    def fake_post(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeResponse()
+
+    monkeypatch.setattr(notifications.httpx, "post", fake_post)
+
+    with caplog.at_level(logging.INFO, logger=notifications.__name__):
+        notifications.send_email("a@test.com", "Asunto", "<p>Hola</p>")
+
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args == (notifications.BREVO_API_URL,)
+    assert kwargs["json"] == {
+        "sender": {"email": "reservas@restoapi.test"},
+        "to": [{"email": "a@test.com"}],
+        "subject": "Asunto",
+        "htmlContent": "<p>Hola</p>",
+    }
+    assert kwargs["headers"]["api-key"] == "test-key"
+    assert kwargs["timeout"] == notifications.BREVO_TIMEOUT_SECONDS
+    assert "Email enviado" in caplog.text
+    assert "test-key" not in caplog.text  # nunca se loguean secretos
+
+
+def test_send_email_brevo_error_no_lanza(monkeypatch, caplog, brevo_enabled):
+    def failing_post(*args, **kwargs):
+        raise httpx.HTTPError("Brevo caído")
+
+    monkeypatch.setattr(notifications.httpx, "post", failing_post)
+
+    with caplog.at_level(logging.ERROR, logger=notifications.__name__):
+        notifications.send_email("a@test.com", "Asunto", "<p>Hola</p>")
+
+    assert "Error enviando email" in caplog.text
+    assert "Brevo caído" in caplog.text
+
+
+def test_send_email_email_disabled_loguea(monkeypatch, caplog):
+    def unexpected_post(*args, **kwargs):
+        raise AssertionError("no debe llamar a Brevo con EMAIL_ENABLED=false")
+
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", False)
+    monkeypatch.setattr(notifications.httpx, "post", unexpected_post)
+
+    with caplog.at_level(logging.INFO, logger=notifications.__name__):
+        notifications.send_email("a@test.com", "Asunto", "<p>Hola</p>")
+
+    assert "Email simulado" in caplog.text
+    assert "Error enviando email" not in caplog.text

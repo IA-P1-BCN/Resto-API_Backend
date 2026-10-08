@@ -11,5 +11,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:5173"
     # Plan §2.2: false en local y CI (el email solo se registra en el log).
     EMAIL_ENABLED: bool = False
+    BREVO_API_KEY: str = ""
+    MAIL_FROM: str = ""
 
 settings = Settings()

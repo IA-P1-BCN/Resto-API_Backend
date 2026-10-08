@@ -289,6 +289,26 @@ def delete_reservation(db: Session, reservation: Reservation) -> None:
 # --- Notificaciones --------------------------------------------------------------------
 
 
+def confirmation_email(
+    db: Session, reservation: Reservation
+) -> tuple[str, str, str] | None:
+    """(to, subject, html) del email de confirmación, o None si no hay destinatario."""
+    user = db.get(User, reservation.user_id)
+    if user is None or not user.email:
+        return None
+    table = db.get(DiningTable, reservation.table_id)
+    table_label = f"mesa {table.number}" if table else f"mesa {reservation.table_id}"
+    subject = "Tu reserva está confirmada"
+    html = (
+        f"<p>Hola {escape(user.name)}:</p>"
+        f"<p>Tu reserva del <strong>{reservation.reserved_at:%d/%m/%Y}</strong> a las "
+        f"<strong>{reservation.reserved_at:%H:%M}</strong> ({escape(table_label)}, "
+        f"{reservation.party_size} personas) está confirmada.</p>"
+        "<p>RestoAPI</p>"
+    )
+    return user.email, subject, html
+
+
 def cancellation_email(
     db: Session, reservation: Reservation
 ) -> tuple[str, str, str] | None:
