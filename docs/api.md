@@ -11,6 +11,47 @@ contrato por módulo. Formatos comunes:
 
 <!-- TODO(Rita, R-08): completar el resto de módulos. -->
 
+## Mesas disponibles (`GET /tables/available`) · HU-18
+
+Roles: `admin` y `waiter`. `kitchen` y `customer` → `403`.
+
+Devuelve las mesas libres para un hueco, en el formato paginado común
+(`{"items": [DiningTableRead], "total", "page", "size"}`).
+
+| Parámetro | Obligatorio | Descripción |
+|---|---|---|
+| `reserved_at` | Sí | Inicio del hueco (`2026-10-10T21:00:00`). Si llega con zona horaria se convierte a UTC, igual que en las reservas |
+| `party_size` | Sí | Número de personas (> 0) |
+| `duration_min` | No | Duración del hueco en minutos (1..480, por defecto 90) |
+| `page`, `size` | No | Paginación (por defecto 1 y 20) |
+
+Una mesa está disponible si:
+
+- `capacity >= party_size`;
+- su `status` no es `out_of_service`;
+- no tiene ninguna reserva activa (`status != cancelled`) que se solape con
+  `[reserved_at, reserved_at + duration_min)`. Es la misma regla de solapamiento que usa
+  `POST /reservations`, así que una mesa devuelta aquí se puede reservar en ese hueco.
+
+Se ordenan por `capacity` y `number`: la mesa que mejor se ajusta al grupo sale primero.
+Si no hay ninguna libre la respuesta es `200` con `items: []`. Parámetros que faltan o no
+son válidos → `422`.
+
+```http
+GET /tables/available?reserved_at=2026-10-10T21:00:00&party_size=4
+```
+
+```json
+{
+  "items": [
+    {"id": 3, "number": 12, "capacity": 4, "location": "terrace", "status": "available"}
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 20
+}
+```
+
 ## Reservas (`/reservations`) · HU-10
 
 Roles: `admin` y `waiter` operan sobre todas las reservas; `customer` solo sobre las suyas

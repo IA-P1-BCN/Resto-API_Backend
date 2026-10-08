@@ -5,6 +5,9 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+from pydantic import BaseModel
+
+
 class OrderItemCreate(BaseModel):
     dish_id: int
     quantity: int

@@ -96,3 +96,5 @@ def update_order_status(db: Session, order_id: int, new_status: str):
     db.commit()
     db.refresh(order)
     return order
+
+
