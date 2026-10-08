@@ -1,6 +1,4 @@
-import asyncio
-
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.model_order import Order
@@ -9,7 +7,7 @@ from app.schemas.schema_order import OrderCreate
 from app.websocket.kitchen import kitchen_manager
 
 
-def create_order(db: Session, order: OrderCreate, waiter_id: int | None = None):
+def create_order(db: Session, order: OrderCreate, background_tasks: BackgroundTasks, waiter_id: int | None = None):
     from app.models.dining_table import DiningTable
     table = db.query(DiningTable).filter(DiningTable.id == order.table_id).first()
     if not table:
@@ -52,8 +50,9 @@ def create_order(db: Session, order: OrderCreate, waiter_id: int | None = None):
     db.refresh(db_order)
 
     # Notificar a la cocina en tiempo real
-    asyncio.create_task(
-        kitchen_manager.broadcast({
+    background_tasks.add_task(
+        kitchen_manager.broadcast,
+        {
             "event": "order_created",
             "order": {
                 "id": db_order.id,
@@ -70,7 +69,7 @@ def create_order(db: Session, order: OrderCreate, waiter_id: int | None = None):
                     for item in db_order.items
                 ],
             },
-        })
+        }
     )
 
     return db_order
@@ -104,7 +103,7 @@ VALID_TRANSITIONS = {
 }
 
 
-def update_order_status(db: Session, order_id: int, new_status: str):
+def update_order_status(db: Session, order_id: int, new_status: str, background_tasks: BackgroundTasks):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -124,8 +123,9 @@ def update_order_status(db: Session, order_id: int, new_status: str):
     db.refresh(order)
 
     # Notificar a la cocina del cambio de estado
-    asyncio.create_task(
-        kitchen_manager.broadcast({
+    background_tasks.add_task(
+        kitchen_manager.broadcast,
+        {
             "event": "order_status_changed",
             "order": {
                 "id": order.id,
@@ -133,7 +133,7 @@ def update_order_status(db: Session, order_id: int, new_status: str):
                 "status": order.status,
                 "total": str(order.total),
             },
-        })
+        }
     )
 
     return order

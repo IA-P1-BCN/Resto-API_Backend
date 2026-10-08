@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.crud import crud_order
@@ -10,8 +10,12 @@ from app.schemas.schema_order import OrderCreate, OrderOut, OrderStatusUpdate
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 @router.post("/", response_model=OrderOut, status_code=201)
-def create_order(order: OrderCreate, db: Session = Depends(get_db)):  # noqa: B008
-    return crud_order.create_order(db, order)
+def create_order(
+    order: OrderCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),  # noqa: B008
+):
+    return crud_order.create_order(db, order, background_tasks)
 
 @router.get("/", response_model=list[OrderOut])
 def list_orders(
@@ -34,5 +38,10 @@ def get_order(order_id: int, db: Session = Depends(get_db)):  # noqa: B008
 
 
 @router.patch("/{order_id}/status", response_model=OrderOut)
-def update_order_status(order_id: int, body: OrderStatusUpdate, db: Session = Depends(get_db)):  # noqa: B008
-    return crud_order.update_order_status(db, order_id, body.status)
+def update_order_status(
+    order_id: int,
+    body: OrderStatusUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),  # noqa: B008
+):
+    return crud_order.update_order_status(db, order_id, body.status, background_tasks)
