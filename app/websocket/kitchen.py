@@ -27,14 +27,15 @@ class KitchenConnectionManager:
 
     def disconnect(self, websocket: WebSocket):
         """Elimina una conexión cuando el cliente se desconecta."""
-        self.active_connections.remove(websocket)
-        logger.info(f"Cocinero desconectado. Total: {len(self.active_connections)}")
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.info(f"Cocinero desconectado. Total: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
         """Envía un mensaje a TODOS los cocineros conectados."""
         json_message = json.dumps(message)
 
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):  # copia para no modificar el original
             try:
                 await connection.send_text(json_message)
             except (ConnectionError, RuntimeError):

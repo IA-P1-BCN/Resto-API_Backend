@@ -50,3 +50,41 @@ def test_filter_orders_by_status(client, db):
     r = client.get("/orders/?status=pending")
     assert r.status_code == 200
     assert len(r.json()) == 1
+
+
+def test_kitchen_receives_order_created(client, db):
+    table_id, dish_id = create_test_data(db)
+
+    with client.websocket_connect("/ws/kitchen") as ws:
+        r = client.post("/orders/", json={
+            "table_id": table_id,
+            "items": [{"dish_id": dish_id, "quantity": 1}]
+        })
+        assert r.status_code == 201
+
+        data = ws.receive_json()
+        assert data["event"] == "order_created"
+        assert data["order"]["table_id"] == table_id
+        assert data["order"]["status"] == "pending"
+
+
+def test_kitchen_receives_status_changed(client, db):
+    table_id, dish_id = create_test_data(db)
+
+    with client.websocket_connect("/ws/kitchen") as ws:
+        r = client.post("/orders/", json={
+            "table_id": table_id,
+            "items": [{"dish_id": dish_id, "quantity": 1}]
+        })
+        order_id = r.json()["id"]
+
+        # Consumir el evento order_created
+        ws.receive_json()
+
+        # Cambiar estado
+        r = client.patch(f"/orders/{order_id}/status", json={"status": "in_kitchen"})
+        assert r.status_code == 200
+
+        data = ws.receive_json()
+        assert data["event"] == "order_status_changed"
+        assert data["order"]["status"] == "in_kitchen"
