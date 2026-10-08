@@ -1,12 +1,13 @@
-from fastapi import HTTPException
+from fastapi import BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.model_order import Order
 from app.models.model_order_item import OrderItem
 from app.schemas.schema_order import OrderCreate
+from app.websocket.kitchen import kitchen_manager
 
 
-def create_order(db: Session, order: OrderCreate):
+def create_order(db: Session, order: OrderCreate, background_tasks: BackgroundTasks, waiter_id: int | None = None):
     from app.models.dining_table import DiningTable
     table = db.query(DiningTable).filter(DiningTable.id == order.table_id).first()
     if not table:
@@ -34,6 +35,7 @@ def create_order(db: Session, order: OrderCreate):
 
     db_order = Order(
         table_id=order.table_id,
+        waiter_id=waiter_id,
         total=total,
         status="pending"
     )
@@ -46,6 +48,30 @@ def create_order(db: Session, order: OrderCreate):
 
     db.commit()
     db.refresh(db_order)
+
+    # Notificar a la cocina en tiempo real
+    background_tasks.add_task(
+        kitchen_manager.broadcast,
+        {
+            "event": "order_created",
+            "order": {
+                "id": db_order.id,
+                "table_id": db_order.table_id,
+                "waiter_id": db_order.waiter_id,
+                "status": db_order.status,
+                "total": str(db_order.total),
+                "items": [
+                    {
+                        "dish_id": item.dish_id,
+                        "quantity": item.quantity,
+                        "unit_price": str(item.unit_price),
+                    }
+                    for item in db_order.items
+                ],
+            },
+        }
+    )
+
     return db_order
 
 def get_orders(db: Session, status: str | None = None, table_id: int | None = None,
@@ -77,7 +103,7 @@ VALID_TRANSITIONS = {
 }
 
 
-def update_order_status(db: Session, order_id: int, new_status: str):
+def update_order_status(db: Session, order_id: int, new_status: str, background_tasks: BackgroundTasks):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -95,6 +121,21 @@ def update_order_status(db: Session, order_id: int, new_status: str):
     order.status = new_status
     db.commit()
     db.refresh(order)
+
+    # Notificar a la cocina del cambio de estado
+    background_tasks.add_task(
+        kitchen_manager.broadcast,
+        {
+            "event": "order_status_changed",
+            "order": {
+                "id": order.id,
+                "table_id": order.table_id,
+                "status": order.status,
+                "total": str(order.total),
+            },
+        }
+    )
+
     return order
 
 
