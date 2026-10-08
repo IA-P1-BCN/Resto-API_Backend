@@ -3,18 +3,23 @@
 Criterios de aceptación (§4.4): solapamiento → 409, party_size > capacity → 422,
 reserva válida → 201, customer con reserva ajena → 403, cancelar libera el hueco,
 mesa inexistente → 404, sin token → 401, rol sin permiso → 403.
+HU-19: crear → 201 sin esperar al email; si Brevo falla, la reserva se guarda igual.
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.core.security import create_access_token
 from app.models.dining_table import DiningTable
 from app.models.model_user import Role, User
 from app.routers import reservations as reservations_router
+from app.services import notifications
 
 MISSING_ID = 999_999
 DAY = "2026-10-10"
@@ -609,6 +614,7 @@ def test_cancel_reservation_returns_200_and_sends_email(
     client, book, customer, customer_headers, sent_emails
 ):
     reservation = book(hour="20:00")
+    sent_emails.clear()  # descarta el email de confirmación (HU-19)
 
     response = client.patch(
         f"/reservations/{reservation['id']}/cancel", headers=customer_headers
@@ -640,6 +646,7 @@ def test_cancelled_reservation_frees_the_slot(
 
 def test_cancel_twice_returns_409(client, book, customer_headers, sent_emails):
     reservation = book()
+    sent_emails.clear()  # descarta el email de confirmación (HU-19)
     url = f"/reservations/{reservation['id']}/cancel"
     client.patch(url, headers=customer_headers)
 
@@ -653,6 +660,7 @@ def test_customer_cancels_other_reservation_returns_403(
     client, book, other_headers, sent_emails
 ):
     reservation = book()
+    sent_emails.clear()  # descarta el email de confirmación (HU-19)
 
     response = client.patch(
         f"/reservations/{reservation['id']}/cancel", headers=other_headers
@@ -730,3 +738,77 @@ def test_openapi_documents_reservations(client: TestClient):
         "/reservations/{reservation_id}/cancel",
     } <= paths.keys()
     assert paths["/reservations"]["post"]["tags"] == ["reservations"]
+
+
+# --- Email de confirmación (HU-19) -------------------------------------------------------
+
+
+def test_create_reservation_sends_confirmation_email(
+    client, table, customer, customer_headers, sent_emails
+):
+    response = client.post(
+        "/reservations",
+        json=_payload(table.id, "21:00", party_size=4),
+        headers=customer_headers,
+    )
+
+    assert response.status_code == 201, response.text
+    assert len(sent_emails) == 1
+    to, subject, html = sent_emails[0]
+    assert to == customer.email
+    assert "confirmada" in subject
+    assert "10/10/2026" in html
+    assert "21:00" in html
+    assert "mesa 1" in html
+    assert "4 personas" in html
+
+
+def test_create_reservation_uses_confirmation_email_data(
+    client, monkeypatch, table, customer_headers, sent_emails
+):
+    expected = ("x@test.com", "Asunto", "<p>Hola</p>")
+    monkeypatch.setattr(
+        reservations_router.service, "confirmation_email", lambda db, r: expected
+    )
+
+    response = client.post(
+        "/reservations", json=_payload(table.id, "20:00"), headers=customer_headers
+    )
+
+    assert response.status_code == 201, response.text
+    assert sent_emails == [expected]
+
+
+def test_create_reservation_returns_201_even_if_email_fails(
+    client, monkeypatch, caplog, table, customer_headers, admin_headers
+):
+    def failing_post(*args, **kwargs):
+        raise httpx.ConnectError("Brevo no responde")
+
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "MAIL_FROM", "reservas@restoapi.test")
+    monkeypatch.setattr(notifications.httpx, "post", failing_post)
+
+    with caplog.at_level(logging.ERROR, logger=notifications.__name__):
+        response = client.post(
+            "/reservations", json=_payload(table.id, "20:00"), headers=customer_headers
+        )
+
+    assert response.status_code == 201, response.text
+    assert "Error enviando email" in caplog.text
+    saved = client.get(f"/reservations/{response.json()['id']}", headers=admin_headers)
+    assert saved.status_code == 200
+
+
+def test_create_rejected_reservation_sends_no_email(
+    client, table, customer_headers, sent_emails
+):
+    response = client.post(
+        "/reservations",
+        json=_payload(table.id, "20:00", party_size=table.capacity + 1),
+        headers=customer_headers,
+    )
+
+    assert response.status_code == 422
+    assert sent_emails == []

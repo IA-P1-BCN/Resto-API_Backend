@@ -1,4 +1,4 @@
-"""Rutas HTTP de reservas (HU-10).
+"""Rutas HTTP de reservas (HU-10) y sus emails de confirmación y cancelación (HU-19).
 
 Permisos (§5.4): admin y waiter operan sobre todas las reservas; customer solo
 sobre las suyas (403 si intenta tocar una ajena); kitchen no tiene acceso.
@@ -85,20 +85,28 @@ def _errors(*codes: int) -> dict[int | str, dict[str, Any]]:
         "Crea una reserva confirmada. Valida que la mesa exista (404), que "
         "`party_size` no supere su capacidad (422) y que no se solape con otra "
         "reserva activa de la misma mesa (409). Un customer solo puede reservar "
-        "para sí mismo; admin y waiter pueden indicar `user_id`. "
-        "Roles: admin, waiter, customer."
+        "para sí mismo; admin y waiter pueden indicar `user_id`. Envía un email de "
+        "confirmación en segundo plano (si `EMAIL_ENABLED=false` solo se registra "
+        "en el log). Roles: admin, waiter, customer."
     ),
     responses=_errors(404, 409, 422),
 )
 def create_reservation(
-    data: ReservationCreate, db: DbSession, user: CurrentUser
+    data: ReservationCreate,
+    db: DbSession,
+    user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ) -> Reservation:
     owner_id = data.user_id or user.id
     if owner_id != user.id:
         if not _is_staff(user):
             raise _forbidden("Solo puedes crear reservas a tu nombre")
         service.ensure_user_exists(db, owner_id)
-    return service.create_reservation(db, data, owner_id)
+    reservation = service.create_reservation(db, data, owner_id)
+    email = service.confirmation_email(db, reservation)
+    if email is not None:
+        background_tasks.add_task(send_email, *email)
+    return reservation
 
 
 @router.get(

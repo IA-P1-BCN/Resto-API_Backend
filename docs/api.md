@@ -57,14 +57,14 @@ GET /tables/available?reserved_at=2026-10-10T21:00:00&party_size=4
 }
 ```
 
-## Reservas (`/reservations`) · HU-10
+## Reservas (`/reservations`) · HU-10, HU-19
 
 Roles: `admin` y `waiter` operan sobre todas las reservas; `customer` solo sobre las suyas
 (`403` si intenta tocar una ajena); `kitchen` no tiene acceso (`403`).
 
 | Método | Ruta | Qué hace | Éxito |
 |---|---|---|---|
-| `POST` | `/reservations` | Crear una reserva (`confirmed`) | `201` |
+| `POST` | `/reservations` | Crear una reserva (`confirmed`) y enviar el email en segundo plano | `201` |
 | `GET` | `/reservations` | Listar con filtros `?status&table_id&date&user_id&page&size` | `200` |
 | `GET` | `/reservations/{id}` | Ver el detalle | `200` |
 | `PATCH` | `/reservations/{id}` | Edición parcial | `200` |
@@ -130,6 +130,20 @@ y el solapamiento. `status` solo lo pueden cambiar `admin` y `waiter`, y solo a 
 Solo se pueden cancelar reservas `confirmed`. Si no lo está → `409` con
 `code="reservation_not_cancellable"`. El email de cancelación se envía con `BackgroundTasks`,
 así que no retrasa la respuesta. Con `EMAIL_ENABLED=false` solo se escribe en el log.
+
+### Emails de reserva (HU-19)
+
+- **Confirmación:** al crear una reserva (`POST /reservations`) se envía un email al usuario
+  dueño de la reserva con la fecha, la hora, la mesa y el nº de personas.
+- **Cancelación:** al cancelarla (`PATCH /reservations/{id}/cancel`) se envía otro con los
+  mismos datos.
+- Se envían en segundo plano con `BackgroundTasks`: la respuesta (`201` / `200`) no espera
+  al email.
+- El envío usa la API de Brevo (`POST https://api.brevo.com/v3/smtp/email`) con
+  `BREVO_API_KEY` y el remitente `MAIL_FROM`.
+- Con `EMAIL_ENABLED=false` (local y CI) no se envía nada: solo se registra en el log.
+- Si Brevo falla (error HTTP, timeout, credenciales que faltan), la reserva se guarda igual y
+  el error queda en el log. El endpoint nunca devuelve un error por culpa del email.
 
 ### Códigos de error
 
