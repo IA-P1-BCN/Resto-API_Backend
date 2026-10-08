@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.crud import crud_order
 from app.database import get_db
-from app.schemas.schema_order import OrderCreate, OrderOut
+
+from app.schemas.schema_order import OrderCreate, OrderOut, OrderStatusUpdate
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -31,3 +32,8 @@ def get_order(order_id: int, db: Session = Depends(get_db)):  # noqa: B008
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+
+@router.patch("/{order_id}/status", response_model=OrderOut)
+def update_order_status(order_id: int, body: OrderStatusUpdate, db: Session = Depends(get_db)):  # noqa: B008
+    return crud_order.update_order_status(db, order_id, body.status)
