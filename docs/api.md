@@ -158,6 +158,17 @@ así que no retrasa la respuesta. Con `EMAIL_ENABLED=false` solo se escribe en e
 | 409 | `reservation_not_cancellable` | Se intenta cancelar una reserva que no está `confirmed` |
 | 422 | `party_size_exceeds_capacity` | `party_size` supera la capacidad de la mesa |
 | 422 | `validation_error` | Validación de Pydantic (campos que faltan, `party_size <= 0`, campos desconocidos…) |
+
+## Pedidos (`/orders`) · HU-07, HU-05
+
+| Endpoint | Roles |
+|---|---|
+| `POST /orders/` | `admin`, `waiter`. El pedido guarda en `waiter_id` el usuario que lo crea |
+| `GET /orders/`, `GET /orders/{id}` | `admin`, `waiter`, `kitchen` |
+| `PATCH /orders/{id}/status` | `admin`, `waiter`, `kitchen` |
+
+Sin token → `401`. `customer` en cualquier endpoint, o `kitchen` creando un pedido → `403`.
+
 ## Facturas y exportación CSV · HU-14
 
 Una factura por pedido, solo para pedidos `served`. Facturar **no** cambia el estado del
