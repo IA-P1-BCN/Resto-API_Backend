@@ -3,10 +3,11 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.pagination import Page, PageParams, paginate
 from app.crud.crud_category import get_category_or_404
 from app.models.model_dish import Dish
+from app.models.model_order_item import OrderItem
 from app.schemas.schema_dish import DishCreate, DishOut, DishUpdate
 
 
@@ -67,6 +68,17 @@ def update_dish(db: Session, dish_id: int, data: DishUpdate):
 
 def delete_dish(db: Session, dish_id: int):
     db_dish = get_dish_or_404(db, dish_id)
+
+    # order_items.dish_id apunta al plato: en Postgres el DELETE fallaría con un
+    # IntegrityError (500). Se comprueba antes y se responde 409, como en delete_category.
+    in_orders = db.scalar(
+        select(OrderItem.id).where(OrderItem.dish_id == dish_id).limit(1)
+    )
+    if in_orders:
+        raise ConflictError(
+            "Dish is used in orders and cannot be deleted. "
+            "Mark it as unavailable instead"
+        )
 
     db.delete(db_dish)
     db.commit()
