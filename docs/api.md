@@ -13,6 +13,7 @@ contrato por módulo. Formatos comunes:
   `?page` (≥ 1, por defecto 1) y `?size` (1..100, por defecto 20)
 - **Autenticación:** cabecera `Authorization: Bearer <token>`. Sin token o con un token
   no válido → `401`. Rol sin permiso → `403`.
+- **Modelo de datos:** diagrama entidad-relación en [`er.md`](er.md).
 
 <!-- TODO(Rita, R-08): completar el resto de módulos. -->
 
@@ -216,3 +217,55 @@ punto, fechas ISO 8601 y UTF-8 con BOM (para que Excel lea bien los acentos).
 | 409 | `invoice_conflict` | Dos facturas a la vez chocan con el mismo número; reintentar |
 | 422 | `invalid_date_range` | `date_from` es posterior a `date_to` |
 | 422 | `validation_error` | Fecha con formato incorrecto o `status` no válido |
+
+## Estadísticas (`/stats`) · HU-15
+
+Solo `admin`. Otro rol → `403`; sin token → `401`.
+
+- **Qué cuenta como venta:** los pedidos `served` y `paid`. Los `pending` e `in_kitchen`
+  todavía no son venta y los `cancelled` no lo son nunca.
+- **Fechas:** `from` y `to` (`YYYY-MM-DD`) son opcionales, filtran por la fecha de creación
+  del pedido y las dos están incluidas. Sin fechas, se usan todos los pedidos.
+- **Importes:** texto con 2 decimales, como en las facturas.
+- **Caché:** cada respuesta se guarda en memoria `STATS_CACHE_TTL` segundos (60 por
+  defecto; `0` = sin caché), una entrada por combinación de parámetros. Durante ese tiempo
+  los pedidos nuevos no aparecen.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/stats/sales` | Número de pedidos, total vendido, ticket medio y desglose por día. Filtros `from`, `to` |
+| GET | `/stats/top-dishes` | Platos más vendidos por unidades, con sus ingresos. Filtros `from`, `to` y `limit` (por defecto 5, de 1 a 50) |
+
+Ventas (`GET /stats/sales?from=2026-10-01&to=2026-10-02`):
+
+```json
+{"date_from": "2026-10-01", "date_to": "2026-10-02", "orders_count": 3,
+ "total_sales": "42.50", "average_ticket": "14.17",
+ "daily": [{"day": "2026-10-01", "orders_count": 2, "total_sales": "38.50"},
+           {"day": "2026-10-02", "orders_count": 1, "total_sales": "4.00"}]}
+```
+
+- `average_ticket = total_sales / orders_count`, redondeado a céntimos (`0.00` si no hay
+  pedidos).
+- `daily` solo incluye los días con ventas, ordenados por fecha.
+
+Platos más vendidos (`GET /stats/top-dishes?limit=2`):
+
+```json
+[{"dish_id": 3, "name": "Croquetas", "quantity": 5, "revenue": "32.50"},
+ {"dish_id": 5, "name": "Flan", "quantity": 4, "revenue": "16.00"}]
+```
+
+- `revenue = quantity × unit_price` de cada línea del pedido, es decir, con el precio que
+  tenía el plato al pedirlo, no con el precio actual de la carta.
+- Orden: más unidades primero; si hay empate, más ingresos y después menor `dish_id`.
+- Lista vacía si no hay ventas en el periodo.
+
+### Códigos de error
+
+| HTTP | `code` | Cuándo |
+|---|---|---|
+| 401 | `unauthorized` | Sin token o token no válido |
+| 403 | `forbidden` | El usuario no es `admin` |
+| 422 | `invalid_date_range` | `from` es posterior a `to` |
+| 422 | `validation_error` | Fecha con formato incorrecto o `limit` fuera de 1..50 |
