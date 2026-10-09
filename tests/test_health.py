@@ -8,7 +8,12 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "commit": None}
+
+
+def test_health_commit_de_render(monkeypatch):
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "abc123")
+    assert client.get("/health").json()["commit"] == "abc123"
 
 
 def test_cors_permite_el_frontend():
