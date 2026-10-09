@@ -5,15 +5,23 @@ Cuenta como venta todo pedido en estado `served` o `paid`. Los `pending` e
 
 Las fechas `date_from` y `date_to` filtran por la fecha de creación del pedido y
 las dos están incluidas.
+
+Caché: cada resultado se guarda `STATS_CACHE_TTL` segundos (60 por defecto) en
+memoria, con una entrada por combinación de parámetros. Durante ese tiempo las
+ventas nuevas no se ven. Con `STATS_CACHE_TTL=0` no se guarda nada.
 """
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from threading import Lock
 
+from cachetools import TTLCache, cached
+from cachetools.keys import hashkey
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.model_dish import Dish
 from app.models.model_order import Order
 from app.models.model_order_item import OrderItem
@@ -21,6 +29,21 @@ from app.models.model_order_item import OrderItem
 SALE_STATUSES = ("served", "paid")
 CENT = Decimal("0.01")
 ZERO = Decimal("0.00")
+
+# Una caché por endpoint. maxsize: como mucho 128 combinaciones de parámetros;
+# si se llena, sale la que lleva más tiempo sin usarse. El lock evita que dos peticiones a la vez
+# (FastAPI las atiende en hilos distintos) escriban la caché al mismo tiempo.
+_sales_cache: TTLCache = TTLCache(maxsize=128, ttl=settings.STATS_CACHE_TTL)
+_top_dishes_cache: TTLCache = TTLCache(
+    maxsize=128, ttl=settings.STATS_CACHE_TTL)
+_cache_lock = Lock()
+
+
+def clear_cache() -> None:
+    """Vacía las cachés de estadísticas (la usan los tests)."""
+    with _cache_lock:
+        _sales_cache.clear()
+        _top_dishes_cache.clear()
 
 
 @dataclass(frozen=True)
@@ -74,6 +97,12 @@ def _sales_filter(
     return stmt
 
 
+# La clave no incluye `db`: la sesión cambia en cada petición, los datos no.
+@cached(
+    _sales_cache,
+    key=lambda db, date_from=None, date_to=None: hashkey(date_from, date_to),
+    lock=_cache_lock,
+)
 def sales_summary(
     db: Session, date_from: date | None = None, date_to: date | None = None
 ) -> SalesSummary:
@@ -105,6 +134,13 @@ def sales_summary(
     )
 
 
+@cached(
+    _top_dishes_cache,
+    key=lambda db, date_from=None, date_to=None, limit=5: hashkey(
+        date_from, date_to, limit
+    ),
+    lock=_cache_lock,
+)
 def top_dishes(
     db: Session,
     date_from: date | None = None,

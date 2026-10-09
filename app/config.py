@@ -15,5 +15,7 @@ class Settings(BaseSettings):
     EMAIL_ENABLED: bool = False
     BREVO_API_KEY: str = ""
     MAIL_FROM: str = ""
+    # HU-15: segundos que se guardan las respuestas de /stats (0 = sin caché).
+    STATS_CACHE_TTL: int = 60
 
 settings = Settings()
