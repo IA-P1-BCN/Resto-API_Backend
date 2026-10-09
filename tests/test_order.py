@@ -19,6 +19,12 @@ def create_test_data(db):
     return table.id, dish.id
 
 
+def kitchen_ws_url(auth_headers):
+    """URL del WebSocket de cocina con el token de un usuario kitchen (HU-05)."""
+    token = auth_headers(Role.kitchen)["Authorization"].removeprefix("Bearer ")
+    return f"/ws/kitchen?token={token}"
+
+
 def new_order(client, headers, table_id, dish_id, quantity=1):
     return client.post("/orders/", headers=headers, json={
         "table_id": table_id,
@@ -69,7 +75,7 @@ def test_filter_orders_by_status(client, db, auth_headers):
 def test_kitchen_receives_order_created(client, db, auth_headers):
     table_id, dish_id = create_test_data(db)
 
-    with client.websocket_connect("/ws/kitchen") as ws:
+    with client.websocket_connect(kitchen_ws_url(auth_headers)) as ws:
         r = new_order(client, auth_headers(Role.waiter), table_id, dish_id)
         assert r.status_code == 201
 
@@ -82,7 +88,7 @@ def test_kitchen_receives_order_created(client, db, auth_headers):
 def test_kitchen_receives_status_changed(client, db, auth_headers):
     table_id, dish_id = create_test_data(db)
 
-    with client.websocket_connect("/ws/kitchen") as ws:
+    with client.websocket_connect(kitchen_ws_url(auth_headers)) as ws:
         r = new_order(client, auth_headers(Role.waiter), table_id, dish_id)
         order_id = r.json()["id"]
 
