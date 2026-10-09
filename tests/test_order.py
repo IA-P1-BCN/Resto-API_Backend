@@ -66,22 +66,11 @@ def test_filter_orders_by_status(client, db, auth_headers):
     assert len(r.json()) == 1
 
 
-<<<<<<< HEAD
-def test_kitchen_receives_order_created(client, db):
-    table_id, dish_id = create_test_data(db)
-
-    with client.websocket_connect("/ws/kitchen") as ws:
-        r = client.post("/orders/", json={
-            "table_id": table_id,
-            "items": [{"dish_id": dish_id, "quantity": 1}]
-        })
-=======
 def test_kitchen_receives_order_created(client, db, auth_headers):
     table_id, dish_id = create_test_data(db)
 
     with client.websocket_connect("/ws/kitchen") as ws:
         r = new_order(client, auth_headers(Role.waiter), table_id, dish_id)
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
         assert r.status_code == 201
 
         data = ws.receive_json()
@@ -90,44 +79,27 @@ def test_kitchen_receives_order_created(client, db, auth_headers):
         assert data["order"]["status"] == "pending"
 
 
-<<<<<<< HEAD
-def test_kitchen_receives_status_changed(client, db):
-    table_id, dish_id = create_test_data(db)
-
-    with client.websocket_connect("/ws/kitchen") as ws:
-        r = client.post("/orders/", json={
-            "table_id": table_id,
-            "items": [{"dish_id": dish_id, "quantity": 1}]
-        })
-=======
 def test_kitchen_receives_status_changed(client, db, auth_headers):
     table_id, dish_id = create_test_data(db)
 
     with client.websocket_connect("/ws/kitchen") as ws:
         r = new_order(client, auth_headers(Role.waiter), table_id, dish_id)
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
         order_id = r.json()["id"]
 
         # Consumir el evento order_created
         ws.receive_json()
 
         # Cambiar estado
-<<<<<<< HEAD
-        r = client.patch(f"/orders/{order_id}/status", json={"status": "in_kitchen"})
-=======
         r = client.patch(
             f"/orders/{order_id}/status",
             headers=auth_headers(Role.kitchen),
             json={"status": "in_kitchen"},
         )
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
         assert r.status_code == 200
 
         data = ws.receive_json()
         assert data["event"] == "order_status_changed"
         assert data["order"]["status"] == "in_kitchen"
-<<<<<<< HEAD
-=======
 
 
 # --- Permisos (HU-05): sala crea; sala y cocina consultan y cambian el estado ---
@@ -182,4 +154,3 @@ def test_orders_sala_y_cocina_consultan_y_cambian_estado(client, db, auth_header
     r = client.patch(f"/orders/{order_id}/status", headers=headers, json={"status": "in_kitchen"})
     assert r.status_code == 200
     assert r.json()["status"] == "in_kitchen"
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746

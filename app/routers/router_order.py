@@ -12,19 +12,9 @@ from app.schemas.schema_order import OrderCreate, OrderOut, OrderStatusUpdate
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-<<<<<<< HEAD
-@router.post("/", response_model=OrderOut, status_code=201)
-def create_order(
-    order: OrderCreate,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),  # noqa: B008
-):
-    return crud_order.create_order(db, order, background_tasks)
-=======
 # Sala (admin, waiter) crea los pedidos; sala y cocina los consultan y cambian su estado.
 Waiter = Annotated[User, Depends(require_role(*ORDERS))]
 STAFF = [Depends(require_role(*ORDERS, *KITCHEN))]
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
 
 @router.post("/", response_model=OrderOut, status_code=201)
 def create_order(
@@ -55,19 +45,11 @@ def get_order(order_id: int, db: Session = Depends(get_db)):  # noqa: B008
     return order
 
 
-<<<<<<< HEAD
-@router.patch("/{order_id}/status", response_model=OrderOut)
-=======
 @router.patch("/{order_id}/status", response_model=OrderOut, dependencies=STAFF)
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
 def update_order_status(
     order_id: int,
     body: OrderStatusUpdate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),  # noqa: B008
 ):
-<<<<<<< HEAD
     return crud_order.update_order_status(db, order_id, body.status, background_tasks)
-=======
-    return crud_order.update_order_status(db, order_id, body.status, background_tasks)
->>>>>>> 7e0f73e6ba82f1e6873f326a30930e8cfc940746
