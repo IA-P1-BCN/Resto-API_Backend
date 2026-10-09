@@ -9,7 +9,8 @@ services:
     plan: free
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Aplica las migraciones solo si ya existe alembic.ini (igual que en Docker)
+    startCommand: sh docker-entrypoint.sh
     healthCheckPath: /health
     # El deploy lo lanza GitHub Actions (deploy.yml) solo si los tests pasan.
     autoDeploy: false

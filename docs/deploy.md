@@ -46,7 +46,7 @@ Pasos (por si hay que recrearlo):
 4. Comprobar que **Auto-Deploy está en Off** (el deploy lo lanza GitHub Actions).
 5. Cuando exista `/health` (D3): abrir `https://<servicio>.onrender.com/docs`.
 
-> El primer deploy fallará hasta que exista `app/main.py` (esqueleto de Carla, C-01) y `alembic.ini`. Es normal.
+> El arranque (`sh docker-entrypoint.sh`) aplica `alembic upgrade head` solo si existe `alembic.ini`, así que la API ya se puede desplegar antes de tener migraciones.
 
 ## 3. GitHub Actions (repo Backend)
 
@@ -62,12 +62,24 @@ Pasos (por si hay que recrearlo):
 | Workflow | Cuándo | Qué hace |
 |---|---|---|
 | `ci.yml` (job `tests`) | PR a `dev`/`main` y push a `dev` | ruff → una sola cabeza de Alembic → migraciones → pytest + cobertura → build Docker. Check obligatorio para mergear |
-| `deploy.yml` | Push a `main` | Reutiliza `ci.yml` y, si pasa, dispara el deploy hook de Render y comprueba `/health` |
+| `deploy.yml` | Push a `main` | Reutiliza `ci.yml` y, si pasa, dispara el deploy hook de Render y espera a que `/health` devuelva el commit desplegado (máx. 10 min) |
 
 Mientras `RENDER_DEPLOY_HOOK_URL` no exista, `deploy.yml` ejecuta los tests y **omite** el deploy con un aviso.
 Los pasos de Alembic, pytest y Docker se activan solos cuando existan `alembic.ini`, `tests/` y `Dockerfile`.
 
 Lanzar un deploy a mano: **Actions → deploy → Run workflow** (rama `main`).
+
+### Merge bloqueado si el CI falla
+
+El check del CI es obligatorio en `dev` y `main` de los dos repos (ruleset **CI obligatorio**: `tests` en el backend, `build` en el frontend). Con un test fallando el botón de merge queda bloqueado.
+
+Se configura con [`scripts/github-rulesets.sh`](../scripts/github-rulesets.sh) (Anna, permisos de admin). Se puede volver a ejecutar sin problema: actualiza el ruleset si ya existe.
+
+```bash
+sh scripts/github-rulesets.sh
+```
+
+Para comprobar que funciona: **Settings → Rules → Rulesets** en cada repo, o abrir un PR con un test roto y ver el merge bloqueado.
 
 ## 4. Vercel (web)
 
@@ -98,7 +110,7 @@ git merge origin/main
 git push
 ```
 
-1. Vercel despliega el frontend automáticamente.
+1. Vercel despliega el frontend automáticamente (el CI del frontend ya ha pasado lint, tests y build en el PR).
 2. `deploy.yml` ejecuta los tests y, si pasan, despliega la API en Render y comprueba `/health`.
 3. Verificar: `<RENDER_URL>/health`, `<RENDER_URL>/docs` y la web en Vercel.
 
