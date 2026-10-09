@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 # ambas heredando de HTTPException. Ver PENDING-CONTRACTS.md.
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.dining_table import DiningTable
+from app.models.model_order import Order
 from app.models.reservation import DEFAULT_DURATION_MIN, Reservation
 from app.schemas.dining_table import DiningTableCreate, DiningTableUpdate
 from app.services.reservations import CANCELLED, reservation_end
@@ -23,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 # ASSUMPTION: code por confirmar con Rita.
 CONFLICT_CODE = "conflict"
+# Variante específica del 409: la mesa tiene pedidos o reservas y no se puede borrar.
+TABLE_IN_USE_CODE = "table_in_use"
 # ASSUMPTION: code por confirmar con Rita.
 NOT_FOUND_CODE = "not_found"
 # Una mesa fuera de servicio nunca se ofrece como disponible (HU-18).
@@ -105,10 +108,36 @@ def change_status(db: Session, table_id: int, status: str) -> DiningTable:
 def delete_table(db: Session, table_id: int) -> None:
     """Delete a table. Raise NotFoundError if it does not exist.
 
+    Raise ConflictError with code "table_in_use" if any order or reservation
+    still references the table: deleting would violate their foreign keys and
+    Postgres would raise IntegrityError, which the API would surface as a
+    generic 500. We check first so the client gets a clear 409.
+
     Flushes after the delete so later lookups in the same session (e.g.
     get_table) no longer find it. The commit is left to the caller.
     """
     table = get_table(db, table_id)
+
+    has_orders = db.scalar(
+        select(Order.id).where(Order.table_id == table_id).limit(1)
+    )
+    if has_orders is not None:
+        logger.warning("Cannot delete table id=%s: has orders", table_id)
+        raise ConflictError(
+            f"Table {table_id} has orders and cannot be deleted",
+            code=TABLE_IN_USE_CODE,
+        )
+
+    has_reservations = db.scalar(
+        select(Reservation.id).where(Reservation.table_id == table_id).limit(1)
+    )
+    if has_reservations is not None:
+        logger.warning("Cannot delete table id=%s: has reservations", table_id)
+        raise ConflictError(
+            f"Table {table_id} has reservations and cannot be deleted",
+            code=TABLE_IN_USE_CODE,
+        )
+
     db.delete(table)
     db.flush()
     logger.info("Deleted table id=%s", table_id)

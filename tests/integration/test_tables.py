@@ -4,12 +4,16 @@ Assumptions: see PENDING-CONTRACTS.md (E1).
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.models.model_category import Category
+from app.models.model_dish import Dish
+from app.models.model_order import Order
 from app.models.reservation import Reservation
 
 MISSING_ID = 999_999
@@ -372,6 +376,62 @@ def test_delete_table_not_found_returns_404(
 
     _assert_error(response, 404, "not_found")
 
+def test_delete_table_with_orders_returns_409(
+    client: TestClient, db: Session, admin_token: str, make_user
+) -> None:
+    """HU-XX: una mesa con pedidos no se puede borrar (409, table_in_use)."""
+    headers = _bearer(admin_token)
+    table = _create_table(client, headers, number=52)
+
+    category = Category(name="Test", sort_order=0)
+    db.add(category)
+    db.flush()
+    dish = Dish(
+        name="Test", price=Decimal("10.00"), is_available=True, category_id=category.id
+    )
+    db.add(dish)
+    db.flush()
+
+    waiter = make_user("waiter", email="waiter-delete@test.com")
+    db.add(
+        Order(
+            table_id=table["id"],
+            waiter_id=waiter.id,
+            status="pending",
+            total=Decimal("10.00"),
+        )
+    )
+    db.commit()
+
+    response = client.delete(f"/tables/{table['id']}", headers=headers)
+
+    _assert_error(response, 409, "table_in_use")
+
+
+def test_delete_table_with_reservations_returns_409(
+    client: TestClient, db: Session, admin_token: str, make_user
+) -> None:
+    """HU-XX: una mesa con reservas no se puede borrar (409, table_in_use)."""
+    headers = _bearer(admin_token)
+    table = _create_table(client, headers, number=53)
+
+    _book_table(db, make_user, table["id"], "2026-10-11T20:00:00")
+
+    response = client.delete(f"/tables/{table['id']}", headers=headers)
+
+    _assert_error(response, 409, "table_in_use")
+
+
+def test_delete_table_without_dependencies_returns_204(
+    client: TestClient, admin_token: str
+) -> None:
+    """Caso feliz: mesa sin pedidos ni reservas se borra correctamente."""
+    headers = _bearer(admin_token)
+    table = _create_table(client, headers, number=54)
+
+    response = client.delete(f"/tables/{table['id']}", headers=headers)
+
+    assert response.status_code == 204
 
 # --- GET /tables/available (HU-18) -----------------------------------------------------------
 
