@@ -10,6 +10,18 @@
 
 ## 1. Neon (base de datos)
 
+> ✅ **Ya creado** (2026-10-02): proyecto `Resto-API` (`small-violet-45321750`) en la organización de Anna · AWS Frankfurt · Postgres 16 · base de datos `restoapi`.
+>
+> | Rama Neon | Usuario | Uso | Quién tiene la URL |
+> |---|---|---|---|
+> | `main` | `restoapi_owner` | Producción (Render) | Solo Anna |
+> | `dev` | `restoapi_dev` | Integración compartida | Equipo |
+>
+> `restoapi_dev` solo existe en la rama `dev`: compartir su URL no da acceso a producción.
+> **Nunca** compartas la URL de `restoapi_owner`: tiene la misma contraseña en `main` y en `dev`.
+
+Pasos (por si hay que recrearlo):
+
 1. [neon.tech](https://neon.tech) → **New Project** → región **AWS Europe (Frankfurt)** · Postgres 16 · base de datos `restoapi`.
 2. **Branches → New branch** `dev` desde `main` (`main` = producción, `dev` = integración).
 3. **Connect** → marcar *Connection pooling* → copiar la cadena y adaptarla a SQLAlchemy:
@@ -34,7 +46,7 @@
 4. Comprobar que **Auto-Deploy está en Off** (el deploy lo lanza GitHub Actions).
 5. Cuando exista `/health` (D3): abrir `https://<servicio>.onrender.com/docs`.
 
-> El primer deploy fallará hasta que exista `app/main.py` (esqueleto de Carla, C-01) y `alembic.ini`. Es normal.
+> El arranque (`sh docker-entrypoint.sh`) aplica `alembic upgrade head` solo si existe `alembic.ini`, así que la API ya se puede desplegar antes de tener migraciones.
 
 ## 3. GitHub Actions (repo Backend)
 
@@ -47,10 +59,27 @@
 | Variable | `RENDER_URL` | `https://<servicio>.onrender.com` |
 | Variable | `COVERAGE_MIN` | `0` al principio · `70` en el Sprint 2 |
 
+| Workflow | Cuándo | Qué hace |
+|---|---|---|
+| `ci.yml` (job `tests`) | PR a `dev`/`main` y push a `dev` | ruff → una sola cabeza de Alembic → migraciones → pytest + cobertura → build Docker. Check obligatorio para mergear |
+| `deploy.yml` | Push a `main` | Reutiliza `ci.yml` y, si pasa, dispara el deploy hook de Render y espera a que `/health` devuelva el commit desplegado (máx. 10 min) |
+
 Mientras `RENDER_DEPLOY_HOOK_URL` no exista, `deploy.yml` ejecuta los tests y **omite** el deploy con un aviso.
 Los pasos de Alembic, pytest y Docker se activan solos cuando existan `alembic.ini`, `tests/` y `Dockerfile`.
 
 Lanzar un deploy a mano: **Actions → deploy → Run workflow** (rama `main`).
+
+### Merge bloqueado si el CI falla
+
+El check del CI es obligatorio en `dev` y `main` de los dos repos (ruleset **CI obligatorio**: `tests` en el backend, `build` en el frontend). Con un test fallando el botón de merge queda bloqueado.
+
+Se configura con [`scripts/github-rulesets.sh`](../scripts/github-rulesets.sh) (Anna, permisos de admin). Se puede volver a ejecutar sin problema: actualiza el ruleset si ya existe.
+
+```bash
+sh scripts/github-rulesets.sh
+```
+
+Para comprobar que funciona: **Settings → Rules → Rulesets** en cada repo, o abrir un PR con un test roto y ver el merge bloqueado.
 
 ## 4. Vercel (web)
 
@@ -81,7 +110,7 @@ git merge origin/main
 git push
 ```
 
-1. Vercel despliega el frontend automáticamente.
+1. Vercel despliega el frontend automáticamente (el CI del frontend ya ha pasado lint, tests y build en el PR).
 2. `deploy.yml` ejecuta los tests y, si pasan, despliega la API en Render y comprueba `/health`.
 3. Verificar: `<RENDER_URL>/health`, `<RENDER_URL>/docs` y la web en Vercel.
 
@@ -91,3 +120,40 @@ git push
 - [ ] Datos de demo cargados en Neon `main`
 - [ ] Usuarios demo por rol funcionando
 - [ ] Vídeo de respaldo grabado (D9) y `docker-compose up` listo como plan B
+
+## 7. Docker en local (HU-02)
+
+Levanta todo el stack con un solo comando: API + PostgreSQL 16 + frontend. Sirve también como **plan B de la demo** si Render o Vercel fallan.
+
+**Requisitos:** Docker Desktop arrancado y los dos repos clonados en la misma carpeta:
+
+```text
+P2_Resto/
+├── Resto-API_Backend/    ← docker-compose.yml
+└── Resto-API_Frontend/
+```
+
+Si el frontend está en otra ruta, añadir `FRONTEND_PATH=/ruta/al/frontend` en el `.env` del backend.
+
+```bash
+cd Resto-API_Backend
+docker compose up --build        # primera vez o tras cambiar dependencias
+docker compose up -d             # en segundo plano
+docker compose logs -f api       # ver logs de la API
+docker compose down              # parar
+docker compose down -v           # parar y BORRAR los datos de la BD
+```
+
+| Servicio | URL | Imagen |
+|---|---|---|
+| `frontend` | http://localhost:5173 | `Resto-API_Frontend/Dockerfile` (Node 22 → nginx) |
+| `api` | http://localhost:8000 · `/docs` | `Resto-API_Backend/Dockerfile` (Python 3.12) |
+| `db` | `localhost:5432` (usuario, contraseña y BD: `restoapi`) | `postgres:16` |
+
+- Al arrancar, la API aplica las migraciones (`alembic upgrade head`) si ya existe `alembic.ini`.
+- `VITE_API_URL` se fija en el build del frontend: si cambia, hay que reconstruir con `docker compose up --build`.
+- Si el puerto 5432 está ocupado (otro Postgres instalado en el equipo), añadir `DB_PORT=5433` al `.env`: la BD queda en `localhost:5433`.
+- Login: `POST /auth/login` como formulario OAuth2 (`username` = email, `password`) devuelve `{access_token, token_type}`. En Swagger (`/docs`), el botón **Authorize** hace el login y añade el token a las peticiones.
+- Para levantar el frontend sin API se puede usar datos simulados: `VITE_USE_MOCK=true` en el `.env` y `docker compose up --build`.
+- Primer admin (sin él nadie puede usar `/users`): `docker compose exec api python -m app.scripts.create_admin EMAIL PASSWORD [NOMBRE]`. Si el email ya existe, lo convierte en admin.
+- Mientras no haya Alembic, las tablas se crean con `create_all`, que no añade columnas nuevas a tablas existentes: si una BD local es anterior a HU-05 (sin `users.role`), recrearla con `docker compose down -v`.

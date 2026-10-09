@@ -1,6 +1,6 @@
 name: deploy
 
-# Push a main → tests → deploy en Render (solo si los tests pasan) → comprobación de /health.
+# Push a main → tests (ci.yml) → deploy en Render (solo si los tests pasan) → espera a que /health sirva este commit.
 # Requiere:
 #   - Secret   RENDER_DEPLOY_HOOK_URL  (Render → Settings → Deploy Hook)
 #   - Variable RENDER_URL              (p. ej. https://restoapi.onrender.com)
@@ -18,40 +18,8 @@ concurrency:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: restoapi_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/restoapi_test
-      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY_TEST || 'test-secret' }}
-      ENVIRONMENT: test
-      EMAIL_ENABLED: "false"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version-file: .python-version
-          cache: pip
-      - run: pip install -r requirements.txt
-      - run: ruff check .
-      # Los pasos siguientes se activan solos en cuanto existan Alembic, los tests y el Dockerfile.
-      - if: hashFiles('alembic.ini') != ''
-        run: alembic upgrade head
-      - if: hashFiles('tests/**/*.py') != ''
-        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=${{ vars.COVERAGE_MIN || 0 }}
-      - if: hashFiles('Dockerfile') != ''
-        run: docker build -t restoapi-backend .
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   deploy-render:
     needs: tests
@@ -69,11 +37,16 @@ jobs:
           fi
           curl -fsS -X POST "$HOOK" > /dev/null
           echo "Deploy lanzado en Render."
-      - name: Comprobar /health
+      - name: Comprobar que Render sirve este commit
         if: env.HOOK != '' && env.RENDER_URL != ''
+        # Mientras Render construye, /health sigue respondiendo la versión anterior:
+        # solo se da por bueno cuando devuelve el commit que se acaba de desplegar.
         run: |
-          for i in $(seq 1 20); do
-            if curl -fsS "$RENDER_URL/health"; then exit 0; fi
-            echo "Esperando a Render ($i/20)..."; sleep 15
+          for i in $(seq 1 40); do
+            commit=$(curl -fsS "$RENDER_URL/health" | jq -r '.commit // empty' 2>/dev/null || true)
+            if [ "$commit" = "$GITHUB_SHA" ]; then
+              echo "Render sirve $GITHUB_SHA"; exit 0
+            fi
+            echo "Esperando a Render ($i/40): sirve '${commit:-sin respuesta}'"; sleep 15
           done
-          echo "::error::$RENDER_URL/health no responde"; exit 1
+          echo "::error::$RENDER_URL no sirve $GITHUB_SHA tras 10 minutos"; exit 1
