@@ -1,6 +1,6 @@
 name: deploy
 
-# Push a main → tests (ci.yml) → deploy en Render (solo si los tests pasan) → comprobación de /health.
+# Push a main → tests (ci.yml) → deploy en Render (solo si los tests pasan) → espera a que /health sirva este commit.
 # Requiere:
 #   - Secret   RENDER_DEPLOY_HOOK_URL  (Render → Settings → Deploy Hook)
 #   - Variable RENDER_URL              (p. ej. https://restoapi.onrender.com)
@@ -37,11 +37,16 @@ jobs:
           fi
           curl -fsS -X POST "$HOOK" > /dev/null
           echo "Deploy lanzado en Render."
-      - name: Comprobar /health
+      - name: Comprobar que Render sirve este commit
         if: env.HOOK != '' && env.RENDER_URL != ''
+        # Mientras Render construye, /health sigue respondiendo la versión anterior:
+        # solo se da por bueno cuando devuelve el commit que se acaba de desplegar.
         run: |
-          for i in $(seq 1 20); do
-            if curl -fsS "$RENDER_URL/health"; then exit 0; fi
-            echo "Esperando a Render ($i/20)..."; sleep 15
+          for i in $(seq 1 40); do
+            commit=$(curl -fsS "$RENDER_URL/health" | jq -r '.commit // empty' 2>/dev/null || true)
+            if [ "$commit" = "$GITHUB_SHA" ]; then
+              echo "Render sirve $GITHUB_SHA"; exit 0
+            fi
+            echo "Esperando a Render ($i/40): sirve '${commit:-sin respuesta}'"; sleep 15
           done
-          echo "::error::$RENDER_URL/health no responde"; exit 1
+          echo "::error::$RENDER_URL no sirve $GITHUB_SHA tras 10 minutos"; exit 1

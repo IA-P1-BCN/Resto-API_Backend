@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -63,4 +65,5 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # Render define RENDER_GIT_COMMIT: deploy.yml lo usa para saber que ya sirve la versión nueva
+    return {"status": "ok", "commit": os.getenv("RENDER_GIT_COMMIT")}
