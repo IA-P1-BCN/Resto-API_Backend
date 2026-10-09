@@ -58,8 +58,6 @@ def page_params(
     return PageParams(page=page, size=size)
 
 
-# Atajo para los routers: `params: PageParamsDep` en vez de
-# `params: Annotated[PageParams, Depends(page_params)]`.
 PageParamsDep = Annotated[PageParams, Depends(page_params)]
 
 

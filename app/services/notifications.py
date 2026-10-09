@@ -59,6 +59,4 @@ def send_email(to: str, subject: str, html: str) -> None:
         response.raise_for_status()
         logger.info("Email enviado a=%s asunto=%r", to, subject)
     except Exception:
-        # Plan §4.4 (HU-19): si el envío falla, la reserva sigue guardada y el
-        # error queda en el log.
         logger.exception("Error enviando email a=%s asunto=%r", to, subject)

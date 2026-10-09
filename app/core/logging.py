@@ -20,7 +20,6 @@ from app.config import settings
 
 REDACTED = "***"
 
-# Field names whose value must never appear in a log.
 SENSITIVE_KEYS = (
     "password",
     "token",
@@ -30,7 +29,6 @@ SENSITIVE_KEYS = (
     "apikey",
 )
 
-# Patterns inside free text: "password=abc", "Bearer abc", "user:pass@host".
 _KEY_VALUE_RE = re.compile(
     r"(?i)\b(\w*(?:"
     + "|".join(SENSITIVE_KEYS)
@@ -39,8 +37,6 @@ _KEY_VALUE_RE = re.compile(
 _BEARER_RE = re.compile(r"(?i)\bbearer\s+[\w\-.~+/]+=*")
 _URL_CREDENTIALS_RE = re.compile(r"(://[^:/\s@]+:)[^@\s]+@")
 
-# Attributes every LogRecord has; anything else came from extra={...}.
-# "color_message" is a duplicate that uvicorn adds for coloured terminals.
 _STANDARD_ATTRS = set(vars(logging.makeLogRecord({}))) | {
     "message",
     "asctime",
@@ -111,8 +107,6 @@ class TextFormatter(logging.Formatter):
         super().__init__("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
 
     def formatMessage(self, record: logging.LogRecord) -> str:
-        # formatMessage runs before the traceback is added, so the extra
-        # fields stay on the same line as the message.
         line = super().formatMessage(record)
         extra = _extra_fields(record)
         if extra:
@@ -139,7 +133,6 @@ def setup_logging(environment: str | None = None, level: str | None = None) -> N
     root.addHandler(handler)
     root.setLevel(level)
 
-    # Uvicorn logs go through the same handler so they share the format.
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         uvicorn_logger = logging.getLogger(name)
         uvicorn_logger.handlers.clear()

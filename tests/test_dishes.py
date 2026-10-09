@@ -8,7 +8,6 @@ from app.models.dining_table import DiningTable
 from app.models.model_order import Order
 from app.models.model_order_item import OrderItem
 
-# La BD de test y el override de get_db vienen de conftest.py.
 client = TestClient(app)
 
 
@@ -208,5 +207,4 @@ def test_delete_dish_used_in_orders_is_409(db):
     assert r.status_code == 409
     assert r.json()["code"] == "conflict"
     assert "used in orders" in r.json()["detail"]
-    # no se ha borrado
     assert client.get(f"/dishes/{dish_id}").status_code == 200

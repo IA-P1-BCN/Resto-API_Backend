@@ -12,8 +12,6 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-# ASSUMPTION D3: app.core.database expone get_db (generador sync de Session
-# que NO hace commit; solo yield + close). Ver PENDING-CONTRACTS.md.
 from app.core.database import get_db
 from app.core.permissions import TABLES, require_role
 from app.models.dining_table import DiningTable
@@ -32,13 +30,10 @@ router = APIRouter(prefix="/tables", tags=["tables"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 
-# require_role ya depende de get_current_user: sin token → 401, rol no permitido → 403.
 ADMIN_ONLY = [Depends(require_role(Role.admin))]
 ADMIN_OR_WAITER = [Depends(require_role(*TABLES))]
 
 
-# ASSUMPTION P1: paginación inline mientras no conozcamos el helper de
-# app.core.pagination (Rita). Se migrará a ese helper cuando llegue.
 class DiningTablePage(BaseModel):
     """Paginated list of dining tables."""
 
@@ -72,7 +67,6 @@ def list_tables(
     )
 
 
-# Debe declararse antes de /{table_id}: si no, "available" se tomaría como id.
 @router.get(
     "/available",
     response_model=DiningTablePage,
@@ -138,8 +132,6 @@ def get_table(table_id: int, db: DbSession) -> DiningTable:
     return dining_table_service.get_table(db, table_id)
 
 
-# ASSUMPTION D4: como get_db no hace commit, el router confirma (o deshace)
-# la transacción en cada endpoint que escribe.
 @router.post(
     "",
     response_model=DiningTableRead,

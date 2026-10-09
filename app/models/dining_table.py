@@ -8,7 +8,6 @@ from typing import get_args
 from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-# ASSUMPTION: app.core.database expone `Base` (DeclarativeBase de SQLAlchemy 2.0) — Carla, C-01.
 from app.core.database import Base
 from app.schemas.dining_table import TableLocation, TableStatus
 
@@ -25,8 +24,6 @@ class DiningTable(Base):
     """A physical table in the dining room."""
 
     __tablename__ = "dining_tables"
-    # ASSUMPTION: Base no define naming_convention para "ck"; si la define con
-    # %(constraint_name)s, estos nombres quedarían duplicados (ck_dining_tables_ck_...).
     __table_args__ = (
         CheckConstraint("capacity > 0", name="ck_dining_tables_capacity_positive"),
         CheckConstraint(

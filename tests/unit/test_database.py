@@ -55,7 +55,3 @@ def test_get_db_opens_one_session_per_call(closed_sessions):
     first.close()
     second.close()
     assert len(closed_sessions) == 2
-
-
-# HU-17 (cobertura): la sesión de BD de cada petición se abre y se cierra siempre,
-# también si el endpoint lanza un error (base de todos los tests de integración).

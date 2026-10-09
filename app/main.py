@@ -67,5 +67,4 @@ def root():
 
 @app.get("/health")
 def health():
-    # Render define RENDER_GIT_COMMIT: deploy.yml lo usa para saber que ya sirve la versión nueva
     return {"status": "ok", "commit": os.getenv("RENDER_GIT_COMMIT")}

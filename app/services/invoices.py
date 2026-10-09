@@ -86,8 +86,6 @@ def create_invoice(db: Session, order_id: int) -> Invoice:
     try:
         db.commit()
     except IntegrityError as exc:
-        # Dos peticiones a la vez: otra factura se ha llevado el mismo número
-        # o el mismo pedido. La BD lo impide y respondemos 409.
         db.rollback()
         raise ConflictError(
             "The invoice could not be created, please try again",
@@ -118,7 +116,6 @@ def invoices_query(
         stmt = stmt.where(Invoice.issued_at >=
                           datetime.combine(date_from, time.min))
     if date_to is not None:
-        # Hasta el final del día: < día siguiente a las 00:00.
         next_day = datetime.combine(date_to + timedelta(days=1), time.min)
         stmt = stmt.where(Invoice.issued_at < next_day)
     return stmt.order_by(Invoice.year, Invoice.sequence)

@@ -51,16 +51,11 @@ def _reservation_end_postgres(element, compiler, **kw) -> str:
 
 @compiles(reservation_end, "sqlite")
 def _reservation_end_sqlite(element, compiler, **kw) -> str:
-    # SQLite guarda los DATETIME como texto 'YYYY-MM-DD HH:MM:SS.ffffff'; se
-    # devuelve el mismo formato para que la comparación de cadenas sea correcta.
     start, minutes = (compiler.process(arg, **kw) for arg in element.clauses)
     return (
         f"(strftime('%Y-%m-%d %H:%M:%f', {start}, '+' || {minutes} || ' minutes')"
         " || '000')"
     )
-
-
-# --- Consultas -------------------------------------------------------------------------
 
 
 def get_reservation(db: Session, reservation_id: int) -> Reservation:
@@ -124,9 +119,6 @@ def find_overlapping(
     return db.scalar(stmt)
 
 
-# --- Validaciones ----------------------------------------------------------------------
-
-
 def _get_table_for_update(db: Session, table_id: int) -> DiningTable:
     """Carga la mesa bloqueando su fila (FOR UPDATE en Postgres).
 
@@ -188,9 +180,6 @@ def ensure_user_exists(db: Session, user_id: int) -> User:
     return user
 
 
-# --- Escrituras ------------------------------------------------------------------------
-
-
 def create_reservation(
     db: Session, data: ReservationCreate, user_id: int
 ) -> Reservation:
@@ -235,7 +224,6 @@ def update_reservation(
         status = changes.get("status", reservation.status)
 
         check_capacity = bool({"table_id", "party_size"} & changes.keys())
-        # Reactivar una reserva cancelada también vuelve a ocupar el hueco.
         check_overlap = status != CANCELLED and (
             bool({"table_id", "reserved_at", "duration_min"} & changes.keys())
             or reservation.status == CANCELLED
@@ -284,9 +272,6 @@ def delete_reservation(db: Session, reservation: Reservation) -> None:
     db.delete(reservation)
     db.commit()
     logger.info("Reserva id=%s borrada", reservation_id)
-
-
-# --- Notificaciones --------------------------------------------------------------------
 
 
 def confirmation_email(

@@ -17,7 +17,6 @@ from pydantic import (
 )
 
 ReservationStatus = Literal["confirmed", "cancelled", "completed", "no_show"]
-# Estados que se pueden fijar con PATCH; para cancelar está PATCH /{id}/cancel.
 EditableReservationStatus = Literal["confirmed", "completed", "no_show"]
 
 MAX_DURATION_MIN = 8 * 60

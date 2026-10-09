@@ -14,7 +14,6 @@ router = APIRouter(prefix="/exports", tags=["exports"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 
-# Exportar para contabilidad: solo admin (HU-14).
 ADMIN_ONLY = [Depends(require_role(Role.admin))]
 
 OrderStatus = Literal["pending", "in_kitchen", "served", "paid", "cancelled"]
@@ -37,7 +36,6 @@ def _check_dates(date_from: date | None, date_to: date | None) -> None:
 def _csv_response(content: str, filename: str) -> Response:
     """Respuesta que el navegador descarga como archivo en vez de mostrarla."""
     return Response(
-        # utf-8-sig añade el BOM: Excel lo usa para leer bien los acentos.
         content=content.encode("utf-8-sig"),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

@@ -64,7 +64,6 @@ def test_export_invoices_is_a_csv_download(client, admin, orders):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/csv")
     assert r.headers["content-disposition"] == 'attachment; filename="invoices.csv"'
-    # BOM al principio para que Excel lea bien los acentos.
     assert r.content.startswith(b"\xef\xbb\xbf")
 
 

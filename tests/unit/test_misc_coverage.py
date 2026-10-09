@@ -65,7 +65,3 @@ def test_json_formatter_includes_redacted_exception():
     assert data["message"] == "boom"
     assert "ValueError" in data["exception"]
     assert "supersecreta" not in data["exception"]
-
-
-# HU-10 (§4.4, contexto): el solapamiento usa reserved_at + duration_min también en PostgreSQL (CI).
-# HU-19: sin destinatario no se envía email de cancelación. HU-11: los logs JSON no filtran secretos.

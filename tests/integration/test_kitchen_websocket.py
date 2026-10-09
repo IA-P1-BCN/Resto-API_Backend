@@ -34,7 +34,3 @@ def test_kitchen_disconnect_removes_the_connection(client, auth_headers):
         ws.close()
 
     assert kitchen_manager.active_connections == []
-
-
-# HU-07/HU-08 (contexto): la cocina recibe pedidos por /ws/kitchen; aquí se cubre
-# el alta y la baja de la conexión (app/routers/websocket_kitchen.py) para HU-17.

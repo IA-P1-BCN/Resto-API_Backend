@@ -30,7 +30,6 @@ def served_orders(db) -> list[Order]:
 def test_duplicated_sequence_raises_conflict_and_rolls_back(db, served_orders, monkeypatch):
     first, second = served_orders
     service.create_invoice(db, first.id)
-    # La otra petición aún no ve la primera factura y calcula el mismo número.
     monkeypatch.setattr(service, "next_sequence", lambda db, year: 1)
 
     with pytest.raises(ConflictError) as exc:
@@ -49,7 +48,3 @@ def test_invoice_uses_ten_percent_vat(db, served_orders):
     assert invoice.base_amount == Decimal("20.00")
     assert invoice.tax_amount == Decimal("2.00")
     assert invoice.number == f"F-{datetime.now(UTC).year}-00001"
-
-
-# HU-14 (§4.4): factura solo si el pedido está served; IVA 10 %.
-# Cubre además el 409 por colisión de número (services/invoices.py, IntegrityError).

@@ -30,7 +30,6 @@ VALIDATION_ERROR_CODE = "validation_error"
 INTERNAL_ERROR_CODE = "internal_error"
 HTTP_ERROR_CODE = "http_error"
  
-# Code used when a plain HTTPException (without code) reaches the handler.
 CODES_BY_STATUS = {
     status.HTTP_400_BAD_REQUEST: BAD_REQUEST_CODE,
     status.HTTP_401_UNAUTHORIZED: UNAUTHORIZED_CODE,
@@ -142,7 +141,6 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     )
  
  
-# Kept for compatibility with the first version of this module.
 app_error_handler = http_error_handler
  
  

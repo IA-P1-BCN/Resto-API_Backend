@@ -22,7 +22,6 @@ from app.scripts import create_admin as script
 def test_db(db, monkeypatch):
     engine = db.get_bind()
     factory = sessionmaker(bind=engine)
-    # El módulo ya importado y app.database (por si se vuelve a ejecutar con runpy).
     for module in (script, database):
         monkeypatch.setattr(module, "engine", engine)
         monkeypatch.setattr(module, "SessionLocal", factory)
@@ -58,13 +57,8 @@ def test_running_as_module_calls_main(test_db, monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["create_admin", "modulo@test.com", "clave-segura"])
 
     with warnings.catch_warnings():
-        # runpy avisa de que el módulo ya estaba importado: es lo esperado aquí.
         warnings.simplefilter("ignore", RuntimeWarning)
         runpy.run_module("app.scripts.create_admin", run_name="__main__")
 
     assert "Admin listo: modulo@test.com" in capsys.readouterr().out
     assert test_db.query(User).filter_by(email="modulo@test.com").one().role == Role.admin.value
-
-
-# HU-05 (contexto): el primer admin se crea con este script (sin él nadie usa /users).
-# HU-17: cubre main() y la entrada `python -m app.scripts.create_admin`.

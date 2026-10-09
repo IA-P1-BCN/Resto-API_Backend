@@ -30,9 +30,6 @@ SALE_STATUSES = ("served", "paid")
 CENT = Decimal("0.01")
 ZERO = Decimal("0.00")
 
-# Una caché por endpoint. maxsize: como mucho 128 combinaciones de parámetros;
-# si se llena, sale la que lleva más tiempo sin usarse. El lock evita que dos peticiones a la vez
-# (FastAPI las atiende en hilos distintos) escriban la caché al mismo tiempo.
 _sales_cache: TTLCache = TTLCache(maxsize=128, ttl=settings.STATS_CACHE_TTL)
 _top_dishes_cache: TTLCache = TTLCache(
     maxsize=128, ttl=settings.STATS_CACHE_TTL)
@@ -97,7 +94,6 @@ def _sales_filter(
     return stmt
 
 
-# La clave no incluye `db`: la sesión cambia en cada petición, los datos no.
 @cached(
     _sales_cache,
     key=lambda db, date_from=None, date_to=None: hashkey(date_from, date_to),

@@ -36,9 +36,6 @@ def _assert_error(response: Any, status_code: int, code: str) -> None:
     assert body["code"] == code
 
 
-# --- Fixtures ----------------------------------------------------------------------------
-
-
 @pytest.fixture
 def make_table(db) -> Callable[..., DiningTable]:
     def _make(number: int, capacity: int = 4) -> DiningTable:
@@ -121,9 +118,6 @@ def _payload(table_id: int, hour: str, **extra: Any) -> dict[str, Any]:
     }
 
 
-# --- POST /reservations ------------------------------------------------------------------
-
-
 def test_create_reservation_returns_201(client, table, customer, customer_headers):
     response = client.post(
         "/reservations",
@@ -145,7 +139,7 @@ def test_create_reservation_returns_201(client, table, customer, customer_header
 
 
 def test_create_overlapping_reservation_returns_409(client, table, book, other_headers):
-    book(hour="20:00")  # 20:00-21:30
+    book(hour="20:00")
 
     response = client.post(
         "/reservations", json=_payload(table.id, "21:00"), headers=other_headers
@@ -157,7 +151,7 @@ def test_create_overlapping_reservation_returns_409(client, table, book, other_h
 def test_create_reservation_containing_another_returns_409(
     client, table, book, other_headers
 ):
-    book(hour="20:00", duration_min=30)  # 20:00-20:30
+    book(hour="20:00", duration_min=30)
 
     response = client.post(
         "/reservations",
@@ -171,7 +165,7 @@ def test_create_reservation_containing_another_returns_409(
 def test_create_back_to_back_reservations_do_not_overlap(
     client, table, book, other_headers
 ):
-    book(hour="20:00")  # 20:00-21:30
+    book(hour="20:00")
 
     after = client.post(
         "/reservations", json=_payload(table.id, "21:30"), headers=other_headers
@@ -304,9 +298,6 @@ def test_create_with_unknown_field_returns_422(client, table, customer_headers):
     assert response.status_code == 422
 
 
-# --- GET /reservations -------------------------------------------------------------------
-
-
 def test_list_as_admin_returns_all_reservations(
     client, book, other_headers, admin_headers
 ):
@@ -398,9 +389,6 @@ def test_list_as_kitchen_returns_403(client, kitchen_headers):
     assert client.get("/reservations", headers=kitchen_headers).status_code == 403
 
 
-# --- GET /reservations/{id} --------------------------------------------------------------
-
-
 def test_owner_gets_reservation(client, book, customer_headers):
     reservation = book()
 
@@ -440,9 +428,6 @@ def test_get_reservation_without_token_returns_401(client, book):
     assert client.get(f"/reservations/{reservation['id']}").status_code == 401
 
 
-# --- PATCH /reservations/{id} ------------------------------------------------------------
-
-
 def test_owner_edits_reservation(client, book, customer_headers):
     reservation = book(hour="20:00")
 
@@ -460,7 +445,7 @@ def test_owner_edits_reservation(client, book, customer_headers):
 
 
 def test_edit_that_overlaps_returns_409(client, book, customer_headers):
-    book(hour="20:00")  # 20:00-21:30
+    book(hour="20:00")
     second = book(hour="22:00")
 
     response = client.patch(
@@ -597,9 +582,6 @@ def test_edit_missing_reservation_returns_404(client, admin_headers):
     _assert_error(response, 404, "reservation_not_found")
 
 
-# --- PATCH /reservations/{id}/cancel -----------------------------------------------------
-
-
 @pytest.fixture
 def sent_emails(monkeypatch) -> list[tuple[str, str, str]]:
     """Sustituye send_email por un mock que guarda los emails enviados."""
@@ -614,7 +596,7 @@ def test_cancel_reservation_returns_200_and_sends_email(
     client, book, customer, customer_headers, sent_emails
 ):
     reservation = book(hour="20:00")
-    sent_emails.clear()  # descarta el email de confirmación (HU-19)
+    sent_emails.clear()
 
     response = client.patch(
         f"/reservations/{reservation['id']}/cancel", headers=customer_headers
@@ -646,7 +628,7 @@ def test_cancelled_reservation_frees_the_slot(
 
 def test_cancel_twice_returns_409(client, book, customer_headers, sent_emails):
     reservation = book()
-    sent_emails.clear()  # descarta el email de confirmación (HU-19)
+    sent_emails.clear()
     url = f"/reservations/{reservation['id']}/cancel"
     client.patch(url, headers=customer_headers)
 
@@ -660,7 +642,7 @@ def test_customer_cancels_other_reservation_returns_403(
     client, book, other_headers, sent_emails
 ):
     reservation = book()
-    sent_emails.clear()  # descarta el email de confirmación (HU-19)
+    sent_emails.clear()
 
     response = client.patch(
         f"/reservations/{reservation['id']}/cancel", headers=other_headers
@@ -674,9 +656,6 @@ def test_cancel_missing_reservation_returns_404(client, admin_headers):
     response = client.patch(f"/reservations/{MISSING_ID}/cancel", headers=admin_headers)
 
     _assert_error(response, 404, "reservation_not_found")
-
-
-# --- DELETE /reservations/{id} -----------------------------------------------------------
 
 
 def test_owner_deletes_reservation(client, book, customer_headers):
@@ -738,9 +717,6 @@ def test_openapi_documents_reservations(client: TestClient):
         "/reservations/{reservation_id}/cancel",
     } <= paths.keys()
     assert paths["/reservations"]["post"]["tags"] == ["reservations"]
-
-
-# --- Email de confirmación (HU-19) -------------------------------------------------------
 
 
 def test_create_reservation_sends_confirmation_email(

@@ -3,7 +3,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-# La BD de test y el override de get_db vienen de conftest.py.
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)

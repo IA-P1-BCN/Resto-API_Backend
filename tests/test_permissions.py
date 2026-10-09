@@ -118,9 +118,6 @@ def test_mesas_sin_permiso_403(client, auth_headers, role):
     assert client.get("/tables", headers=auth_headers(role)).status_code == 403
 
 
-# --- Flujo completo con el login real (HU-04): login -> token -> permisos ---
-
-
 def login_headers(client, make_user, role):
     user = make_user(role)
     r = client.post("/auth/login", data={"username": user.email, "password": "secreto123"})

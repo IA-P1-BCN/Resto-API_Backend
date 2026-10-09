@@ -92,10 +92,8 @@ def test_kitchen_receives_status_changed(client, db, auth_headers):
         r = new_order(client, auth_headers(Role.waiter), table_id, dish_id)
         order_id = r.json()["id"]
 
-        # Consumir el evento order_created
         ws.receive_json()
 
-        # Cambiar estado
         r = client.patch(
             f"/orders/{order_id}/status",
             headers=auth_headers(Role.kitchen),
@@ -106,9 +104,6 @@ def test_kitchen_receives_status_changed(client, db, auth_headers):
         data = ws.receive_json()
         assert data["event"] == "order_status_changed"
         assert data["order"]["status"] == "in_kitchen"
-
-
-# --- Permisos (HU-05): sala crea; sala y cocina consultan y cambian el estado ---
 
 
 @pytest.mark.parametrize(
