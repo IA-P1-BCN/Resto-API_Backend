@@ -2,7 +2,7 @@
 
 API REST para la gestión de un restaurante: usuarios y roles, mesas, reservas, menú, pedidos, cocina en tiempo real, facturación, estadísticas y notificaciones por email.
 
-> Frontend: [IA-P1-BCN/Resto-API_Frontend](https://github.com/IA-P1-BCN/Resto-API_Frontend) · Despliegue: [docs/deploy.md](docs/deploy.md) (solo Anna despliega)
+> Frontend: [IA-P1-BCN/Resto-API_Frontend](https://github.com/IA-P1-BCN/Resto-API_Frontend) · Despliegue: [docs/deploy.md](docs/deploy.md) (solo Anna despliega) · Modelo de datos: [docs/er.md](docs/er.md) ([imagen](docs/er-diagram.png))
 
 ## Stack
 
