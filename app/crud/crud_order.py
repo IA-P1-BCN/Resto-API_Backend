@@ -50,6 +50,8 @@ def create_order(db: Session, order: OrderCreate, background_tasks: BackgroundTa
     db.refresh(db_order)
 
     # Notificar a la cocina en tiempo real
+    from app.models.dining_table import DiningTable
+    table = db.get(DiningTable, db_order.table_id)
     background_tasks.add_task(
         kitchen_manager.broadcast,
         {
@@ -57,6 +59,7 @@ def create_order(db: Session, order: OrderCreate, background_tasks: BackgroundTa
             "order": {
                 "id": db_order.id,
                 "table_id": db_order.table_id,
+                "table_number": table.number if table else None,
                 "waiter_id": db_order.waiter_id,
                 "status": db_order.status,
                 "total": str(db_order.total),
@@ -123,6 +126,8 @@ def update_order_status(db: Session, order_id: int, new_status: str, background_
     db.refresh(order)
 
     # Notificar a la cocina del cambio de estado
+    from app.models.dining_table import DiningTable
+    table = db.get(DiningTable, order.table_id)
     background_tasks.add_task(
         kitchen_manager.broadcast,
         {
@@ -130,6 +135,7 @@ def update_order_status(db: Session, order_id: int, new_status: str, background_
             "order": {
                 "id": order.id,
                 "table_id": order.table_id,
+                "table_number": table.number if table else None,
                 "status": order.status,
                 "total": str(order.total),
             },
