@@ -44,11 +44,7 @@ def _assert_error(response: Any, status_code: int, code: str) -> None:
     assert response.status_code == status_code, response.text
     body = response.json()
     assert isinstance(body["detail"], str)
-    # ASSUMPTION E1: code provisional, por confirmar con Rita.
     assert body["code"] == code
-
-
-# --- GET /tables -----------------------------------------------------------------------------
 
 
 def test_list_tables_without_token_returns_401(client: TestClient) -> None:
@@ -106,9 +102,6 @@ def test_list_tables_page_zero_returns_422(
     assert response.status_code == 422
 
 
-# --- GET /tables/{table_id} ------------------------------------------------------------------
-
-
 def test_get_table_without_token_returns_401(client: TestClient) -> None:
     assert client.get(f"/tables/{MISSING_ID}").status_code == 401
 
@@ -138,9 +131,6 @@ def test_get_table_not_found_returns_404(client: TestClient, admin_token: str) -
     response = client.get(f"/tables/{MISSING_ID}", headers=_bearer(admin_token))
 
     _assert_error(response, 404, "not_found")
-
-
-# --- POST /tables ----------------------------------------------------------------------------
 
 
 def test_create_table_without_token_returns_401(client: TestClient) -> None:
@@ -220,8 +210,6 @@ def test_create_table_invalid_location_returns_422(
     assert response.status_code == 422
 
 
-# --- PUT /tables/{table_id} ------------------------------------------------------------------
-
 FULL_UPDATE = {"number": 31, "capacity": 8, "location": "terrace", "status": "reserved"}
 
 
@@ -275,9 +263,6 @@ def test_update_table_to_taken_number_returns_409(
     )
 
     _assert_error(response, 409, "conflict")
-
-
-# --- PATCH /tables/{table_id}/status ---------------------------------------------------------
 
 
 def test_change_status_without_token_returns_401(client: TestClient) -> None:
@@ -338,9 +323,6 @@ def test_change_status_invalid_value_returns_422(
     )
 
     assert response.status_code == 422
-
-
-# --- DELETE /tables/{table_id} ---------------------------------------------------------------
 
 
 def test_delete_table_without_token_returns_401(client: TestClient) -> None:
@@ -432,8 +414,6 @@ def test_delete_table_without_dependencies_returns_204(
     response = client.delete(f"/tables/{table['id']}", headers=headers)
 
     assert response.status_code == 204
-
-# --- GET /tables/available (HU-18) -----------------------------------------------------------
 
 SLOT = {"reserved_at": "2026-10-10T20:00:00", "party_size": 2}
 

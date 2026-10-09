@@ -78,9 +78,6 @@ def make_order(db, dishes):
     return _make
 
 
-# --- Servicio: sales_summary --------------------------------------------------------
-
-
 def test_sales_without_orders_are_zero(db):
     summary = stats.sales_summary(db)
 
@@ -91,15 +88,15 @@ def test_sales_without_orders_are_zero(db):
 
 
 def test_sales_totals_and_average_ticket(db, make_order):
-    make_order("2026-10-01", "paid", paella=2)  # 28.00
-    make_order("2026-10-01", "served", croquetas=1, flan=1)  # 10.50
-    make_order("2026-10-02", "paid", flan=1)  # 4.00
+    make_order("2026-10-01", "paid", paella=2)
+    make_order("2026-10-01", "served", croquetas=1, flan=1)
+    make_order("2026-10-02", "paid", flan=1)
 
     summary = stats.sales_summary(db)
 
     assert summary.orders_count == 3
     assert summary.total_sales == Decimal("42.50")
-    assert summary.average_ticket == Decimal("14.17")  # 42.50 / 3 redondeado
+    assert summary.average_ticket == Decimal("14.17")
 
 
 def test_sales_daily_breakdown_is_ordered_by_day(db, make_order):
@@ -147,9 +144,6 @@ def test_sales_with_only_one_date_limit(db, make_order):
     assert stats.sales_summary(db, date_to=date(2026, 9, 30)).orders_count == 1
 
 
-# --- Servicio: top_dishes -----------------------------------------------------------
-
-
 def test_top_dishes_ordered_by_quantity(db, make_order):
     make_order("2026-10-01", "paid", paella=1, croquetas=3)
     make_order("2026-10-02", "served", croquetas=2, flan=4)
@@ -172,7 +166,7 @@ def test_top_dishes_tie_goes_to_higher_revenue(db, make_order):
 def test_top_dishes_revenue_uses_price_at_order_time(db, make_order, dishes):
     make_order("2026-10-01", "paid", paella=2)
     db.get(Dish, dishes["paella"]).price = Decimal(
-        "99.00")  # sube el precio después
+        "99.00")
     db.commit()
 
     assert stats.top_dishes(db)[0].revenue == Decimal("28.00")
@@ -205,9 +199,6 @@ def test_top_dishes_filtered_by_date(db, make_order):
 
 def test_top_dishes_without_sales_is_empty(db, dishes):
     assert stats.top_dishes(db) == ()
-
-
-# --- GET /stats/sales ---------------------------------------------------------------
 
 
 def test_get_sales(client, admin_headers, make_order):
@@ -257,9 +248,6 @@ def test_get_sales_invalid_date_is_validation_error(client, admin_headers):
     assert r.json()["code"] == "validation_error"
 
 
-# --- GET /stats/top-dishes ----------------------------------------------------------
-
-
 def test_get_top_dishes(client, admin_headers, make_order, dishes):
     make_order("2026-10-01", "paid", paella=1, croquetas=3)
 
@@ -281,7 +269,7 @@ def test_get_top_dishes(client, admin_headers, make_order, dishes):
 def test_get_top_dishes_default_limit_is_5(client, admin_headers, db, make_order, dishes):
     category_id = db.get(Dish, dishes["flan"]).category_id
     order = make_order("2026-10-01", "paid")
-    for i in range(1, 7):  # 6 platos: "dish 1" se vende 1 vez ... "dish 6", 6 veces
+    for i in range(1, 7):
         dish = Dish(category_id=category_id,
                     name=f"dish {i}", price=Decimal("1.00"))
         db.add(dish)
@@ -325,9 +313,6 @@ def test_get_top_dishes_from_after_to_is_422(client, admin_headers):
     assert r.json()["code"] == "invalid_date_range"
 
 
-# --- Caché --------------------------------------------------------------------------
-
-
 def test_sales_are_cached_until_cache_is_cleared(client, admin_headers, make_order):
     make_order("2026-10-01", "paid", flan=1)
     first = client.get("/stats/sales", headers=admin_headers).json()
@@ -337,7 +322,7 @@ def test_sales_are_cached_until_cache_is_cleared(client, admin_headers, make_ord
     stats.clear_cache()
     fresh = client.get("/stats/sales", headers=admin_headers).json()
 
-    assert cached == first  # el pedido nuevo no se ve: viene de la caché
+    assert cached == first
     assert fresh["orders_count"] == 2
 
 
@@ -346,7 +331,6 @@ def test_sales_cache_expires_after_ttl(client, admin_headers, make_order):
     client.get("/stats/sales", headers=admin_headers)
     make_order("2026-10-01", "paid", paella=1)
 
-    # Simula que han pasado más de STATS_CACHE_TTL segundos.
     stats._sales_cache.expire(monotonic() + stats.settings.STATS_CACHE_TTL + 1)
 
     assert client.get(
@@ -386,9 +370,6 @@ def test_top_dishes_cache_key_depends_on_limit(client, admin_headers, make_order
 
     assert len(one.json()) == 1
     assert len(two.json()) == 2
-
-
-# --- Permisos -----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("path", ["/stats/sales", "/stats/top-dishes"])

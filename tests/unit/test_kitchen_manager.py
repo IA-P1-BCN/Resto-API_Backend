@@ -69,7 +69,3 @@ def test_disconnect_unknown_connection_does_nothing():
     manager.disconnect(FakeWebSocket())
 
     assert manager.active_connections == []
-
-
-# HU-07/HU-08 (contexto): la cocina recibe los pedidos en tiempo real; un cliente
-# caído no debe impedir que el resto reciba el evento. HU-17: cobertura de kitchen.py.

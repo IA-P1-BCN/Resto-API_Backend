@@ -17,7 +17,6 @@ from app.database import Base, get_db
 from app.main import app
 from app.models.model_user import Role, User
 
-# StaticPool: una sola conexión, para que todas las sesiones vean la misma BD en memoria.
 engine = create_engine(
     "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
 )
@@ -60,7 +59,6 @@ def make_user(db):
         user = User(
             name=f"{role.value} test",
             email=email or f"{role.value}@test.com",
-            # rounds=4: hash válido para verify_password pero mucho más rápido.
             password_hash=bcrypt.hashpw(b"secreto123", bcrypt.gensalt(rounds=4)).decode(),
             role=role.value,
             is_active=is_active,

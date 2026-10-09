@@ -19,13 +19,12 @@ class Invoice(Base):
 
     __tablename__ = "invoices"
     __table_args__ = (
-        # El número correlativo se reinicia cada año: (2026, 1), (2026, 2)... (2027, 1).
         UniqueConstraint("year", "sequence", name="uq_invoices_year_sequence"),
         CheckConstraint("total >= 0", name="ck_invoices_total_positive"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    number = Column(String(20), unique=True, nullable=False)  # F-2026-00001
+    number = Column(String(20), unique=True, nullable=False)
     year = Column(Integer, nullable=False)
     sequence = Column(Integer, nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id"),

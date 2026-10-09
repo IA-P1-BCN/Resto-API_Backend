@@ -59,16 +59,13 @@ def _order(client, headers, table_id: int, items: list[tuple[int, int]]):
     })
 
 
-# --- POST /orders --------------------------------------------------------------------------
-
-
 def test_order_total_is_sum_of_quantity_by_unit_price(client, menu, waiter):
     r = _order(client, waiter, menu["table"], [(menu["pasta"], 2), (menu["vino"], 3)])
 
     assert r.status_code == 201
     body = r.json()
     lines = sum(Decimal(i["quantity"]) * Decimal(i["unit_price"]) for i in body["items"])
-    assert Decimal(body["total"]) == lines == Decimal("30.75")  # 2×10.50 + 3×3.25
+    assert Decimal(body["total"]) == lines == Decimal("30.75")
     assert body["status"] == "pending"
 
 
@@ -104,9 +101,6 @@ def test_order_without_items_field_returns_422(client, menu, waiter):
     _assert_error(r, 422, "validation_error")
 
 
-# --- GET /orders ---------------------------------------------------------------------------
-
-
 def test_list_orders_filters_by_table(client, menu, waiter):
     _order(client, waiter, menu["table"], [(menu["pasta"], 1)])
     _order(client, waiter, menu["other_table"], [(menu["vino"], 1)])
@@ -119,7 +113,6 @@ def test_list_orders_filters_by_table(client, menu, waiter):
 
 def test_list_orders_filters_by_dates(client, menu, waiter):
     _order(client, waiter, menu["table"], [(menu["pasta"], 1)])
-    # Márgenes de un día para no depender de la zona horaria del servidor de BD.
     today = datetime.now(UTC).date()
     yesterday, later = today - timedelta(days=1), today + timedelta(days=2)
 
@@ -139,14 +132,8 @@ def test_list_orders_invalid_date_returns_422(client, waiter):
     _assert_error(r, 422, "validation_error")
 
 
-# --- GET /orders/{id} ----------------------------------------------------------------------
-
-
 def test_get_unknown_order_returns_404(client, waiter):
     _assert_error(client.get(f"/orders/{MISSING_ID}", headers=waiter), 404, "not_found")
-
-
-# --- PATCH /orders/{id}/status -------------------------------------------------------------
 
 
 def _set_status(client, headers, order_id: int, status: str):
@@ -194,7 +181,3 @@ def test_unknown_status_value_returns_422(client, menu, waiter):
 
 def test_status_of_unknown_order_returns_404(client, waiter):
     _assert_error(_set_status(client, waiter, MISSING_ID, "in_kitchen"), 404, "not_found")
-
-
-# HU-07 (§4.4): pedido con plato no disponible → 409; total = Σ(quantity × unit_price).
-# Cubre además crud_order (mesa inexistente, filtros, transiciones) y GET /orders/{id} → 404.

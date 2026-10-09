@@ -11,8 +11,6 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
-# ASSUMPTION E1: app.core.exceptions define NotFoundError y ConflictError,
-# ambas heredando de HTTPException. Ver PENDING-CONTRACTS.md.
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.dining_table import DiningTable
 from app.models.model_order import Order
@@ -22,19 +20,10 @@ from app.services.reservations import CANCELLED, reservation_end
 
 logger = logging.getLogger(__name__)
 
-# ASSUMPTION: code por confirmar con Rita.
 CONFLICT_CODE = "conflict"
-# Variante específica del 409: la mesa tiene pedidos o reservas y no se puede borrar.
 TABLE_IN_USE_CODE = "table_in_use"
-# ASSUMPTION: code por confirmar con Rita.
 NOT_FOUND_CODE = "not_found"
-# Una mesa fuera de servicio nunca se ofrece como disponible (HU-18).
 OUT_OF_SERVICE = "out_of_service"
-
-# El servicio nunca hace commit: la transacción la gestiona el caller
-# (router o fixture de test). Hace add/flush/delete y deja la sesión
-# consistente para consultas posteriores.
-
 
 def _ensure_number_available(
     db: Session, number: int, exclude_id: int | None = None
@@ -160,7 +149,6 @@ def list_available_tables(
     same rule used to reject overlapping reservations (HU-10).
     Tables are ordered by capacity and number, so the best fit comes first.
     """
-    # reserved_at se guarda sin zona horaria (UTC), igual que en las reservas.
     if reserved_at.tzinfo is not None:
         reserved_at = reserved_at.astimezone(UTC).replace(tzinfo=None)
     ends_at = reserved_at + timedelta(minutes=duration_min)

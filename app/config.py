@@ -11,11 +11,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
     ALLOWED_ORIGINS: str = "http://localhost:5173"
-    # Plan §2.2: false en local y CI (el email solo se registra en el log).
     EMAIL_ENABLED: bool = False
     BREVO_API_KEY: str = ""
     MAIL_FROM: str = ""
-    # HU-15: segundos que se guardan las respuestas de /stats (0 = sin caché).
     STATS_CACHE_TTL: int = 60
 
 settings = Settings()

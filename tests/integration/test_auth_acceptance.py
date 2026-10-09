@@ -17,7 +17,7 @@ from app.models.dining_table import DiningTable
 from app.models.model_user import Role
 from app.models.reservation import Reservation
 
-PASSWORD = "secreto123"  # contraseña que pone make_user (conftest.py)
+PASSWORD = "secreto123"
 
 
 def _login(client, email: str, password: str = PASSWORD):
@@ -33,9 +33,6 @@ def _assert_error(response: Any, status_code: int, code: str) -> None:
     body = response.json()
     assert isinstance(body["detail"], str)
     assert body["code"] == code
-
-
-# --- HU-04: login y token ----------------------------------------------------------------
 
 
 def test_login_ok_returns_200_and_token_of_the_user(client, make_user):
@@ -113,9 +110,6 @@ def test_changed_password_works_and_old_one_returns_401(client, make_user, admin
     _assert_error(_login(client, "camarero@test.com"), 401, "unauthorized")
 
 
-# --- HU-05: permisos por rol ---------------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     ("method", "url"),
     [
@@ -158,7 +152,3 @@ def test_customer_gets_other_customer_reservation_returns_403(client, db, make_u
     assert alien.status_code == 403
     assert isinstance(alien.json()["detail"], str)
     assert alien.json()["code"]
-
-
-# HU-04 (§4.4): login correcto → 200 + token; credenciales erróneas → 401; token expirado → 401.
-# HU-05 (§4.4): waiter accediendo a /users → 403; customer solo ve sus reservas.

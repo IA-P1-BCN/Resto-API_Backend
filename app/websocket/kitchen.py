@@ -35,12 +35,11 @@ class KitchenConnectionManager:
         """Envía un mensaje a TODOS los cocineros conectados."""
         json_message = json.dumps(message)
 
-        for connection in list(self.active_connections):  # copia para no modificar el original
+        for connection in list(self.active_connections):
             try:
                 await connection.send_text(json_message)
             except (ConnectionError, RuntimeError):
                 self.disconnect(connection)
 
 
-# Instancia global única (singleton)
 kitchen_manager = KitchenConnectionManager()

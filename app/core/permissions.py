@@ -9,13 +9,12 @@ from app.core.security import decode_access_token
 from app.database import get_db
 from app.models.model_user import Role, User
 
-# Matriz de permisos por recurso. Cada router la aplica con require_role(*RECURSO).
 ALL_ROLES = (Role.admin, Role.waiter, Role.kitchen, Role.customer)
 USERS = (Role.admin,)
 MENU_READ = ALL_ROLES
 MENU_WRITE = (Role.admin,)
 TABLES = (Role.admin, Role.waiter)
-RESERVATIONS = (Role.admin, Role.waiter, Role.customer)  # customer: solo las suyas
+RESERVATIONS = (Role.admin, Role.waiter, Role.customer)
 ORDERS = (Role.admin, Role.waiter)
 KITCHEN = (Role.admin, Role.kitchen)
 INVOICES = (Role.admin, Role.waiter)

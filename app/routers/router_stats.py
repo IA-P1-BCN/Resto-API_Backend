@@ -20,8 +20,6 @@ router = APIRouter(
 
 DbSession = Annotated[Session, Depends(get_db)]
 
-# En la URL se llaman `from` y `to`; en Python `from` es palabra reservada,
-# así que el parámetro se llama date_from y `alias` le da el nombre público.
 DateFrom = Annotated[
     date | None, Query(
         alias="from", description="First day included (YYYY-MM-DD)")

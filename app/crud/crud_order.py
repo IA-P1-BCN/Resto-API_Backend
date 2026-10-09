@@ -49,7 +49,6 @@ def create_order(db: Session, order: OrderCreate, background_tasks: BackgroundTa
     db.commit()
     db.refresh(db_order)
 
-    # Notificar a la cocina en tiempo real
     from app.models.dining_table import DiningTable
     table = db.get(DiningTable, db_order.table_id)
     background_tasks.add_task(
@@ -125,7 +124,6 @@ def update_order_status(db: Session, order_id: int, new_status: str, background_
     db.commit()
     db.refresh(order)
 
-    # Notificar a la cocina del cambio de estado
     from app.models.dining_table import DiningTable
     table = db.get(DiningTable, order.table_id)
     background_tasks.add_task(

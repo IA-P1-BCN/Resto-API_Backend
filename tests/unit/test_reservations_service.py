@@ -43,13 +43,13 @@ def booked(db, make_user) -> Reservation:
 @pytest.mark.parametrize(
     ("start", "duration", "overlaps"),
     [
-        ((19, 0), 60, False),  # termina justo cuando empieza la otra
+        ((19, 0), 60, False),
         ((19, 0), 61, True),
-        ((20, 0), 90, True),  # mismo intervalo
-        ((20, 30), 15, True),  # contenida
-        ((19, 0), 180, True),  # la contiene
+        ((20, 0), 90, True),
+        ((20, 30), 15, True),
+        ((19, 0), 180, True),
         ((21, 29), 60, True),
-        ((21, 30), 60, False),  # empieza justo cuando termina la otra
+        ((21, 30), 60, False),
     ],
 )
 def test_find_overlapping_uses_half_open_intervals(
@@ -127,9 +127,6 @@ def test_send_email_never_raises(monkeypatch, caplog):
     assert "Error enviando email" in caplog.text
 
 
-# --- _ensure_capacity ------------------------------------------------------------------
-
-
 @pytest.mark.parametrize("party_size", [1, 4])
 def test_ensure_capacity_accepts_up_to_capacity(party_size):
     service._ensure_capacity(DiningTable(number=1, capacity=4), party_size)
@@ -141,9 +138,6 @@ def test_ensure_capacity_rejects_over_capacity():
 
     assert exc_info.value.status_code == 422
     assert exc_info.value.code == "party_size_exceeds_capacity"
-
-
-# --- Reglas de update_reservation (sin BD) ---------------------------------------------
 
 
 class FakeSession:
@@ -287,8 +281,6 @@ def test_update_over_capacity_raises_and_rolls_back(checks):
     assert reservation.party_size == 2
 
 
-# --- Emails de reserva (HU-19) ---------------------------------------------------------
-
 MISSING_USER_ID = 999_999
 
 
@@ -371,7 +363,7 @@ def test_send_email_brevo_ok(monkeypatch, caplog, brevo_enabled):
     assert kwargs["headers"]["api-key"] == "test-key"
     assert kwargs["timeout"] == notifications.BREVO_TIMEOUT_SECONDS
     assert "Email enviado" in caplog.text
-    assert "test-key" not in caplog.text  # nunca se loguean secretos
+    assert "test-key" not in caplog.text
 
 
 def test_send_email_brevo_error_no_lanza(monkeypatch, caplog, brevo_enabled):

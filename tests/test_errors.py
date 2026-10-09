@@ -96,7 +96,6 @@ def test_validation_error_returns_422_with_field_list(error_app):
     assert body["detail"] == "Invalid request data"
     assert body["code"] == VALIDATION_ERROR_CODE
     assert body["errors"][0]["loc"] == ["path", "item_id"]
-    # No se devuelve el valor enviado (podría ser una contraseña).
     assert "input" not in body["errors"][0]
 
 

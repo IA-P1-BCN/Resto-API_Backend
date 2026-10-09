@@ -50,8 +50,6 @@ async def kitchen_websocket(
     user_id = decode_access_token(token) if token else None
     user = db.get(User, user_id) if user_id is not None else None
     allowed = user is not None and user.is_active and user.role in ALLOWED_ROLES
-    # La sesión solo hace falta para esta comprobación: se libera ya para no
-    # ocupar una conexión de la BD mientras la cocina sigue conectada.
     db.close()
     if not allowed:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -61,7 +59,6 @@ async def kitchen_websocket(
 
     try:
         while True:
-            # Esperar mensajes del cliente (ping/pong o confirmaciones)
             data = await websocket.receive_text()
             logger.info(f"Mensaje de cocina: {data}")
 

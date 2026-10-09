@@ -69,8 +69,6 @@ def update_dish(db: Session, dish_id: int, data: DishUpdate):
 def delete_dish(db: Session, dish_id: int):
     db_dish = get_dish_or_404(db, dish_id)
 
-    # order_items.dish_id apunta al plato: en Postgres el DELETE fallaría con un
-    # IntegrityError (500). Se comprueba antes y se responde 409, como en delete_category.
     in_orders = db.scalar(
         select(OrderItem.id).where(OrderItem.dish_id == dish_id).limit(1)
     )

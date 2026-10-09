@@ -12,7 +12,6 @@ from app.schemas.schema_order import OrderCreate, OrderOut, OrderStatusUpdate
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-# Sala (admin, waiter) crea los pedidos; sala y cocina los consultan y cambian su estado.
 Waiter = Annotated[User, Depends(require_role(*ORDERS))]
 STAFF = [Depends(require_role(*ORDERS, *KITCHEN))]
 

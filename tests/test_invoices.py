@@ -35,9 +35,6 @@ def admin(auth_headers):
     return auth_headers(Role.admin)
 
 
-# --- POST /orders/{id}/invoice ------------------------------------------------
-
-
 def test_create_invoice_for_served_order(client, admin, make_order):
     order_id = make_order("22.00")
 
@@ -130,9 +127,6 @@ def test_create_invoice_without_token_returns_401(client, make_order):
     assert r.status_code == 401
 
 
-# --- GET /invoices y /invoices/{id} -------------------------------------------
-
-
 def test_list_invoices_is_paginated_and_ordered(client, admin, make_order):
     for _ in range(3):
         client.post(f"/orders/{make_order()}/invoice", headers=admin)
@@ -151,7 +145,6 @@ def test_list_invoices_filters_by_issue_date(client, db, admin, make_order):
     for _ in range(2):
         client.post(f"/orders/{make_order()}/invoice", headers=admin)
     first = db.get(Invoice, 1)
-    # issued_at se guarda sin zona horaria (UTC).
     first.issued_at = datetime(
         2026, 1, 15, 23, 59, tzinfo=UTC).replace(tzinfo=None)
     db.commit()

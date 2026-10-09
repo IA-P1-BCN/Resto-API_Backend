@@ -13,6 +13,3 @@ def test_root_rejects_post_with_error_format(client):
 
     assert r.status_code == 405
     assert r.json()["code"] == "method_not_allowed"
-
-
-# HU-16 (contexto): la raíz responde en la URL pública; HU-11: formato {"detail", "code"}.
