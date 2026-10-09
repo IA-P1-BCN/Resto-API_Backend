@@ -1,10 +1,16 @@
+from decimal import Decimal
+
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models.dining_table import DiningTable
+from app.models.model_order import Order
+from app.models.model_order_item import OrderItem
 
 # La BD de test y el override de get_db vienen de conftest.py.
 client = TestClient(app)
+
 
 @pytest.fixture(autouse=True)
 def setup_menu(admin_headers):
@@ -15,18 +21,26 @@ def setup_menu(admin_headers):
     yield
     client.headers.pop("Authorization", None)
 
+
 def dish_data():
     return {"category_id": 1, "name": "Patatas bravas", "price": 5.5}
 
+
 def create_menu():
-    client.post("/dishes/", json={"category_id": 1, "name": "Bravas", "price": 5})
-    client.post("/dishes/", json={"category_id": 1, "name": "Croquetas", "price": 7})
-    client.post("/dishes/", json={"category_id": 1, "name": "Jamón", "price": 15})
+    client.post("/dishes/", json={"category_id": 1,
+                "name": "Bravas", "price": 5})
+    client.post("/dishes/", json={"category_id": 1,
+                "name": "Croquetas", "price": 7})
+    client.post("/dishes/", json={"category_id": 1,
+                "name": "Jamón", "price": 15})
     client.post(
         "/dishes/",
-        json={"category_id": 2, "name": "Flan", "price": 4, "is_available": False},
+        json={"category_id": 2, "name": "Flan",
+              "price": 4, "is_available": False},
     )
-    client.post("/dishes/", json={"category_id": 2, "name": "Helado", "price": 3})
+    client.post("/dishes/", json={"category_id": 2,
+                "name": "Helado", "price": 3})
+
 
 def test_create_dish_success():
     r = client.post("/dishes/", json=dish_data())
@@ -38,22 +52,27 @@ def test_create_dish_success():
     assert data["description"] is None
     assert data["id"] == 1
 
+
 def test_create_dish_category_not_found():
     r = client.post("/dishes/", json={**dish_data(), "category_id": 999})
     assert r.status_code == 404
+
 
 def test_create_dish_negative_price():
     r = client.post("/dishes/", json={**dish_data(), "price": -1})
     assert r.status_code == 422
 
+
 def test_create_dish_too_many_decimals():
     r = client.post("/dishes/", json={**dish_data(), "price": "5.555"})
     assert r.status_code == 422
+
 
 def test_list_dishes_empty():
     r = client.get("/dishes/")
     assert r.status_code == 200
     assert r.json() == {"items": [], "total": 0, "page": 1, "size": 20}
+
 
 def test_list_dishes_with_data():
     create_menu()
@@ -63,12 +82,14 @@ def test_list_dishes_with_data():
     assert data["total"] == 5
     assert len(data["items"]) == 5
 
+
 def test_filter_by_category():
     create_menu()
     r = client.get("/dishes/", params={"category_id": 2})
     data = r.json()
     assert data["total"] == 2
     assert all(d["category_id"] == 2 for d in data["items"])
+
 
 def test_filter_by_availability():
     create_menu()
@@ -77,12 +98,14 @@ def test_filter_by_availability():
     assert data["total"] == 1
     assert data["items"][0]["name"] == "Flan"
 
+
 def test_filter_by_max_price():
     create_menu()
     r = client.get("/dishes/", params={"max_price": 5})
     data = r.json()
     assert data["total"] == 3
     assert all(float(d["price"]) <= 5 for d in data["items"])
+
 
 def test_combined_filters():
     create_menu()
@@ -93,6 +116,7 @@ def test_combined_filters():
     assert data["total"] == 2
     assert [d["name"] for d in data["items"]] == ["Bravas", "Croquetas"]
 
+
 def test_pagination():
     create_menu()
     r = client.get("/dishes/", params={"page": 2, "size": 2})
@@ -102,6 +126,7 @@ def test_pagination():
     assert data["size"] == 2
     assert [d["name"] for d in data["items"]] == ["Jamón", "Flan"]
 
+
 def test_pagination_last_page():
     create_menu()
     r = client.get("/dishes/", params={"page": 3, "size": 2})
@@ -109,10 +134,12 @@ def test_pagination_last_page():
     assert data["total"] == 5
     assert len(data["items"]) == 1
 
+
 def test_pagination_invalid_params():
     assert client.get("/dishes/", params={"page": 0}).status_code == 422
     assert client.get("/dishes/", params={"size": 101}).status_code == 422
     assert client.get("/dishes/", params={"max_price": -1}).status_code == 422
+
 
 def test_get_dish_by_id():
     client.post("/dishes/", json=dish_data())
@@ -120,9 +147,11 @@ def test_get_dish_by_id():
     assert r.status_code == 200
     assert r.json()["name"] == "Patatas bravas"
 
+
 def test_get_dish_not_found():
     r = client.get("/dishes/999")
     assert r.status_code == 404
+
 
 def test_update_dish():
     client.post("/dishes/", json=dish_data())
@@ -133,19 +162,23 @@ def test_update_dish():
     assert data["is_available"] is False
     assert data["name"] == "Patatas bravas"
 
+
 def test_update_dish_negative_price():
     client.post("/dishes/", json=dish_data())
     r = client.put("/dishes/1", json={"price": -3})
     assert r.status_code == 422
+
 
 def test_update_dish_category_not_found():
     client.post("/dishes/", json=dish_data())
     r = client.put("/dishes/1", json={"category_id": 999})
     assert r.status_code == 404
 
+
 def test_update_dish_not_found():
     r = client.put("/dishes/999", json={"name": "X"})
     assert r.status_code == 404
+
 
 def test_delete_dish():
     client.post("/dishes/", json=dish_data())
@@ -153,6 +186,27 @@ def test_delete_dish():
     assert r.status_code == 204
     assert client.get("/dishes/1").status_code == 404
 
+
 def test_delete_dish_not_found():
     r = client.delete("/dishes/999")
     assert r.status_code == 404
+
+
+def test_delete_dish_used_in_orders_is_409(db):
+    dish_id = client.post("/dishes/", json=dish_data()).json()["id"]
+    table = DiningTable(number=1, capacity=4, location="indoor")
+    db.add(table)
+    db.flush()
+    order = Order(table_id=table.id, status="served", total=Decimal("5.50"))
+    order.items = [OrderItem(dish_id=dish_id, quantity=1,
+                             unit_price=Decimal("5.50"))]
+    db.add(order)
+    db.commit()
+
+    r = client.delete(f"/dishes/{dish_id}")
+
+    assert r.status_code == 409
+    assert r.json()["code"] == "conflict"
+    assert "used in orders" in r.json()["detail"]
+    # no se ha borrado
+    assert client.get(f"/dishes/{dish_id}").status_code == 200
