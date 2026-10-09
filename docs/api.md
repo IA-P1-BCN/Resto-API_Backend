@@ -158,3 +158,61 @@ así que no retrasa la respuesta. Con `EMAIL_ENABLED=false` solo se escribe en e
 | 409 | `reservation_not_cancellable` | Se intenta cancelar una reserva que no está `confirmed` |
 | 422 | `party_size_exceeds_capacity` | `party_size` supera la capacidad de la mesa |
 | 422 | `validation_error` | Validación de Pydantic (campos que faltan, `party_size <= 0`, campos desconocidos…) |
+
+## Pedidos (`/orders`) · HU-07, HU-05
+
+| Endpoint | Roles |
+|---|---|
+| `POST /orders/` | `admin`, `waiter`. El pedido guarda en `waiter_id` el usuario que lo crea |
+| `GET /orders/`, `GET /orders/{id}` | `admin`, `waiter`, `kitchen` |
+| `PATCH /orders/{id}/status` | `admin`, `waiter`, `kitchen` |
+
+Sin token → `401`. `customer` en cualquier endpoint, o `kitchen` creando un pedido → `403`.
+
+## Facturas y exportación CSV · HU-14
+
+Una factura por pedido, solo para pedidos `served`. Facturar **no** cambia el estado del
+pedido (sigue `served`; después se marca `paid` con `PATCH /orders/{id}/status`).
+
+- **IVA:** 10 %, incluido en el precio de los platos. `base_amount = total / 1,10`
+  (redondeado a céntimos) y `tax_amount = total - base_amount`, así que
+  `base_amount + tax_amount = total` siempre.
+- **Número:** `F-AÑO-NNNNN` (`F-2026-00001`). El correlativo vuelve a `00001` cada año.
+
+| Método | Ruta | Roles | Descripción |
+|---|---|---|---|
+| POST | `/orders/{order_id}/invoice` | admin, waiter | Genera la factura del pedido → `201` |
+| GET | `/invoices` | admin, waiter | Listado paginado (`Page[InvoiceOut]`) ordenado por número. Filtros `date_from`, `date_to` (fecha de emisión, ambos incluidos) |
+| GET | `/invoices/{invoice_id}` | admin, waiter | Una factura |
+| GET | `/exports/invoices` | admin | CSV de facturas. Filtros `date_from`, `date_to` |
+| GET | `/exports/orders` | admin | CSV de pedidos. Filtros `status`, `date_from`, `date_to` (fecha de creación) |
+
+Factura (`InvoiceOut`):
+
+```json
+{"id": 1, "number": "F-2026-00001", "order_id": 7, "base_amount": "20.00",
+ "tax_rate": "0.10", "tax_amount": "2.00", "total": "22.00",
+ "issued_at": "2026-10-08T12:52:48"}
+```
+
+### CSV
+
+Se descargan como archivo: `Content-Type: text/csv` y
+`Content-Disposition: attachment; filename="invoices.csv"`. Si hay filtro de fechas, el
+nombre las incluye (`orders_2026-01-01_2026-01-31.csv`). Separador `,`, decimales con
+punto, fechas ISO 8601 y UTF-8 con BOM (para que Excel lea bien los acentos).
+
+- `invoices.csv`: `number, issued_at, order_id, table_id, base_amount, tax_rate, tax_amount, total`
+- `orders.csv`: `id, created_at, table_id, waiter_id, status, items, total, invoice_number`
+  (`items` = suma de cantidades; `invoice_number` vacío si no tiene factura)
+
+### Códigos de error
+
+| HTTP | `code` | Cuándo |
+|---|---|---|
+| 404 | `not_found` | El pedido o la factura no existen |
+| 409 | `order_not_served` | Se intenta facturar un pedido que no está `served` |
+| 409 | `invoice_already_exists` | El pedido ya tiene factura |
+| 409 | `invoice_conflict` | Dos facturas a la vez chocan con el mismo número; reintentar |
+| 422 | `invalid_date_range` | `date_from` es posterior a `date_to` |
+| 422 | `validation_error` | Fecha con formato incorrecto o `status` no válido |
