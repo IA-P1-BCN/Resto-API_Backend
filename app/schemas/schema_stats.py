@@ -23,3 +23,13 @@ class SalesSummaryOut(BaseModel):
     total_sales: Decimal = Field(examples=["1254.00"])
     average_ticket: Decimal = Field(examples=["26.13"])
     daily: list[SalesDayOut]
+
+
+class TopDishOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    dish_id: int
+    name: str = Field(examples=["Paella"])
+    quantity: int = Field(examples=[34], description="Units sold")
+    revenue: Decimal = Field(
+        examples=["476.00"], description="quantity x unit price")

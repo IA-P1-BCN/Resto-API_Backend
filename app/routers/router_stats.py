@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ErrorResponse, UnprocessableError
 from app.core.permissions import STATS, require_role
 from app.database import get_db
-from app.schemas.schema_stats import SalesSummaryOut
+from app.schemas.schema_stats import SalesSummaryOut, TopDishOut
 from app.services import stats
 
 router = APIRouter(
@@ -30,6 +30,8 @@ DateTo = Annotated[
     date | None, Query(
         alias="to", description="Last day included (YYYY-MM-DD)")
 ]
+Limit = Annotated[int, Query(
+    ge=1, le=50, description="Number of dishes (1-50)")]
 
 ERRORS = {
     422: {"model": ErrorResponse, "description": "`from` is after `to`"},
@@ -54,3 +56,22 @@ def _check_dates(date_from: date | None, date_to: date | None) -> None:
 def get_sales(db: DbSession, date_from: DateFrom = None, date_to: DateTo = None):
     _check_dates(date_from, date_to)
     return stats.sales_summary(db, date_from, date_to)
+
+
+@router.get(
+    "/top-dishes",
+    response_model=list[TopDishOut],
+    responses=ERRORS,
+    summary="Best-selling dishes",
+    description="Dishes ordered by units sold, with their revenue. Counts orders "
+    "in status `served` or `paid`. Optional filters `from` and `to` (creation "
+    "date, both included) and `limit` (default 5, max 50). Role: admin.",
+)
+def get_top_dishes(
+    db: DbSession,
+    date_from: DateFrom = None,
+    date_to: DateTo = None,
+    limit: Limit = 5,
+):
+    _check_dates(date_from, date_to)
+    return stats.top_dishes(db, date_from, date_to, limit)
