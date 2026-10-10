@@ -5,8 +5,10 @@
 | Pieza | Plataforma | Repo | Se despliega cuando… |
 |---|---|---|---|
 | Base de datos | Neon (PostgreSQL 16) | — | Migraciones con `alembic upgrade head` en el arranque de Render |
-| API | Render (Web Service, free) | `Resto-API_Backend` | Push a `main` → `deploy.yml` → tests en verde → deploy hook |
-| Web | Vercel (Hobby) | `Resto-API_Frontend` | Push a `main` (producción) · cada PR genera una Preview URL |
+| API | Render (Web Service, free) | `restochino-dev/backend` | Push a `main` → `deploy.yml` → tests en verde → deploy hook |
+| Web | Vercel (Hobby) | `restochino-dev/frontend` | Push a `main` (producción) · cada PR genera una Preview URL |
+
+El equipo trabaja en `IA-P1-BCN/Resto-API_Backend` y `IA-P1-BCN/Resto-API_Frontend`. Se despliega desde los repos de `restochino-dev`: lo que está en `main` de IA-P1-BCN se sube con una PR a `main` de `restochino-dev` (ver [sección 5](#5-paso-a-producción-d5-y-d9)).
 
 ## 1. Neon (base de datos)
 
@@ -32,13 +34,13 @@ Pasos (por si hay que recrearlo):
 
 ## 2. Render (API)
 
-1. Render → **New → Blueprint** → repo `IA-P1-BCN/Resto-API_Backend` (lee [`render.yaml`](../render.yaml)).
+1. Render → **New → Blueprint** → repo `restochino-dev/backend` (lee [`render.yaml`](../render.yaml)).
 2. Rellenar las variables marcadas como `sync: false`:
 
    | Variable | Valor |
    |---|---|
-   | `DATABASE_URL` | Neon, rama `main` (pooled) |
-   | `ALLOWED_ORIGINS` | URL de producción de Vercel (p. ej. `https://restoapi.vercel.app`) |
+   | `DATABASE_URL` | Neon, rama `main` (pooled), empezando por `postgresql+psycopg://` (no `postgresql://`: ver paso 3 de Neon) |
+   | `ALLOWED_ORIGINS` | URL de producción de Vercel, exacta y sin `/` final (p. ej. `https://restoapi.vercel.app`). Varias, separadas por comas |
    | `BREVO_API_KEY`, `MAIL_FROM` | Vacías hasta HU-19 (D7) |
 
    `JWT_SECRET_KEY` la genera Render automáticamente.
@@ -50,7 +52,7 @@ Pasos (por si hay que recrearlo):
 
 ## 3. GitHub Actions (repo Backend)
 
-**Settings → Secrets and variables → Actions:**
+En `restochino-dev/backend`, **Settings → Secrets and variables → Actions** (o en el entorno `production`, que es el que usa `deploy.yml`):
 
 | Tipo | Nombre | Valor |
 |---|---|---|
@@ -83,7 +85,7 @@ Para comprobar que funciona: **Settings → Rules → Rulesets** en cada repo, o
 
 ## 4. Vercel (web)
 
-1. Vercel → **Add New → Project** → importar `IA-P1-BCN/Resto-API_Frontend`.
+1. Vercel → **Add New → Project** → importar `restochino-dev/frontend`.
 2. Configuración:
 
    | Campo | Valor |
@@ -93,7 +95,11 @@ Para comprobar que funciona: **Settings → Rules → Rulesets** en cada repo, o
    | Build Command | `npm run build` |
    | Output Directory | `dist` |
    | Install Command | `npm ci` |
-   | Env var | `VITE_API_URL` = URL de Render (Production y Preview) |
+   | Env var | `VITE_API_URL` = URL de Render, sin `/` final (Production y Preview) |
+   | Env var | `VITE_USE_MOCK` = `false` (o no definirla) |
+   | Node.js | La que permite `engines` en el `package.json` del frontend (20.19+ o 22.12+, lo que pide Vite) |
+
+   Las variables `VITE_*` se fijan al construir: si se cambian, hay que volver a desplegar (**Deployments → Redeploy**).
 
 3. **Settings → Git → Production Branch** = `main`.
 4. Añadir la URL de producción de Vercel a `ALLOWED_ORIGINS` en Render.
@@ -102,20 +108,65 @@ Para comprobar que funciona: **Settings → Rules → Rulesets** en cada repo, o
 
 ## 5. Paso a producción (D5 y D9)
 
-```bash
-# Anna abre el PR dev → main en GitHub; otra persona lo aprueba; Anna mergea (merge commit, no squash)
-# Después, sincronizar dev con main:
-git switch dev && git pull
-git merge origin/main
-git push
-```
+1. En IA-P1-BCN, Anna abre el PR `dev` → `main` en cada repo; otra persona lo aprueba y Anna mergea (merge commit, no squash).
+2. Se sube `main` a `restochino-dev` con una PR a su `main` (en cada repo; Anna puede mergearla sin aprobación). Los dos repos no comparten historial, así que la rama se crea desde `main` de `restochino-dev` y se le copia el contenido de `main` de IA-P1-BCN:
+
+   ```bash
+   # Una vez por copia local: remoto de despliegue
+   git remote add restochino https://github.com/restochino-dev/backend.git    # frontend: .../frontend.git
+
+   git fetch origin
+   git fetch restochino
+   git switch -c release/AAAA-MM-DD restochino/main
+   git restore --source origin/main --staged --worktree :/
+   git commit -m "Release AAAA-MM-DD"
+   git push restochino release/AAAA-MM-DD
+   # Abrir el PR release/AAAA-MM-DD → main en restochino-dev y mergearlo
+   ```
+
+   `git restore` deja el contenido exactamente igual que `main` de IA-P1-BCN (también borra lo que allí ya no existe).
+
+Al entrar en `main` de `restochino-dev`:
 
 1. Vercel despliega el frontend automáticamente (el CI del frontend ya ha pasado lint, tests y build en el PR).
 2. `deploy.yml` ejecuta los tests y, si pasan, despliega la API en Render y comprueba `/health`.
 3. Verificar: `<RENDER_URL>/health`, `<RENDER_URL>/docs` y la web en Vercel.
 
+### Comprobar el despliegue
+
+[`scripts/smoke-deploy.sh`](../scripts/smoke-deploy.sh) revisa de una vez los criterios de HU-01: `/health`, Swagger, que la API pide token, CORS desde Vercel, la web y su *rewrite*, y que el frontend apunta a la API de Render.
+
+```bash
+sh scripts/smoke-deploy.sh https://<servicio>.onrender.com https://<proyecto>.vercel.app
+```
+
+### Primer admin en producción
+
+El plan free de Render no tiene *Shell*, así que el primer admin se crea **desde tu equipo** contra la BD de producción (Neon `main`). La URL solo se pone en la variable de entorno de ese comando, nunca en el `.env` ni en el repo:
+
+```bash
+# PowerShell
+$env:DATABASE_URL = "postgresql+psycopg://restoapi_owner:...@...-pooler...neon.tech/restoapi?sslmode=require"
+python -m app.scripts.create_admin EMAIL PASSWORD "Nombre"
+Remove-Item Env:DATABASE_URL
+```
+
+Con ese admin se crean el resto de usuarios desde Swagger (`POST /users/`).
+
+### Si algo falla
+
+| Síntoma | Causa | Solución |
+|---|---|---|
+| Render: `No module named 'psycopg2'` | `DATABASE_URL` empieza por `postgresql://` | Cambiarla a `postgresql+psycopg://` |
+| Render: `No config file 'alembic.ini' found` | El *Start Command* del servicio no es el de `render.yaml` | Poner `sh docker-entrypoint.sh` en **Settings → Start Command** de Render |
+| Navegador: error de CORS | `ALLOWED_ORIGINS` no contiene la URL exacta de Vercel | Corregirla en Render (sin `/` final) y reiniciar el servicio |
+| La web llama a `localhost:8000` | Falta `VITE_API_URL` en Vercel | Añadirla y hacer *Redeploy* |
+| `500` con `SSL connection has been closed unexpectedly` tras un rato sin uso | Neon suspende la BD a los 5 min y el *pool* de SQLAlchemy guardaba conexiones cerradas | Resuelto con `pool_pre_ping=True` en `create_engine` (`app/database.py`): comprobar que el deploy incluye ese cambio |
+| Cocina en "Sin conexión" | Render dormido o reiniciando | Se reconecta sola; mientras tanto actualiza cada 10 s |
+
 ## 6. Checklist antes de la demo (D10)
 
+- [ ] `sh scripts/smoke-deploy.sh <RENDER_URL> <VERCEL_URL>` en verde
 - [ ] Abrir `<RENDER_URL>/health` 5-10 min antes (cold start del free tier ≈ 50 s)
 - [ ] Datos de demo cargados en Neon `main`
 - [ ] Usuarios demo por rol funcionando
