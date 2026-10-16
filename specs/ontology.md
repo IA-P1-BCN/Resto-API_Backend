@@ -35,7 +35,7 @@
 | `role` | str(20), valor del enum `Role` | obligatorio, por defecto `customer` (R-03) |
 | `is_active` | bool | por defecto `true`; "borrar" = `false` (R-04) |
 | `created_at`, `updated_at` | datetime UTC | `updated_at` nuevo en P3 |
-| `email_verified` | bool | (S) por defecto `false` |
+| `email_verified` | bool | (S) por defecto `false`; informativo, no bloquea el login (R-15) |
 | `deleted_at`, `created_by`, `updated_by` | datetime / FK users, nulos | (S) soft delete + auditoría |
 | `totp_secret`, `totp_enabled` | str cifrado / bool | (C) 2FA |
 | `totp_recovery_codes` | str, nulo | (C) 2FA: SHA-256 de los códigos de recuperación sin usar, separados por comas (HU-37) |
@@ -96,8 +96,9 @@ borra físicamente (R-04).
 | R-12 | C | Con `totp_enabled`, el login exige además un código TOTP válido |
 | R-13 | C | El login social crea o vincula un `User` (rol `customer`) |
 | R-14 | M | La estación de una línea de pedido es la `station` de la categoría de su plato (se deriva en vivo). `kitchen` ve y marca solo líneas `kitchen`; `bartender`, solo `bar`; `admin` y `waiter`, todas. Marcar una línea de otra estación → 403; un pedido sin líneas de su estación no existe para `kitchen`/`bartender` (404). `total` es siempre el del pedido completo |
+| R-15 | S | Verificación de email (HU-33), informativa: `email_verified` no impide iniciar sesión. Nace `false` en `POST /auth/register` y `true` en las cuentas creadas por un `admin`, por `create_admin` o por login social (nuevas o vinculadas); pasa a `true` al usar un `EmailVerificationToken` o al fijar la contraseña con un `PasswordResetToken`. Cambiar el propio email lo devuelve a `false` e invalida los `EmailVerificationToken` pendientes. Los endpoints que reciben un email para enviar un enlace (verificación, recuperación) responden igual exista o no la cuenta |
 | R-16 | M | El progreso de un pedido se calcula en vivo sobre las líneas que ve el usuario (R-14). `ready_to_serve` de una línea = `prepared_quantity - served_quantity`, nunca menos de 0; el del pedido es la suma de sus líneas. `stage`: `all_served` si todo está servido; si no, `ready_to_serve` si hay unidades listas; si no, `waiting` si no hay nada preparado ni servido; si no, `preparing`. `by_station` repite el cálculo por estación. No cambia el `status` del pedido |
 
 ## 5. Pendientes
 Ninguno a nivel de ontología. Los parámetros numéricos (caducidad del refresh, límite del rate limiting) los fija la spec de su HU.
-Las decisiones de verificación de email (¿bloquea el login?) y de recuperación de códigos 2FA se toman en la spec de su HU, que es donde se implementan.
+La verificación de email quedó resuelta en HU-33 (R-15, definida en `specs/HU-33-verificacion-email.md` y traída aquí para que la citen todas las HU). La recuperación de códigos 2FA se decide en la spec de su HU, que es donde se implementa.
