@@ -25,6 +25,14 @@ services:
         value: "60"
       - key: JWT_SECRET_KEY
         generateValue: true
+      # Límite de intentos de login (HU-31). La IP real llega en True-Client-IP (Cloudflare);
+      # se comprueba en el log "Login blocked" tras el deploy (paso 6 de la HU).
+      - key: LOGIN_MAX_ATTEMPTS
+        value: "5"
+      - key: LOGIN_WINDOW_MINUTES
+        value: "15"
+      - key: CLIENT_IP_HEADER
+        value: True-Client-IP
       # Cambiar a "true" cuando Brevo esté configurado (HU-19, D7).
       - key: EMAIL_ENABLED
         value: "false"

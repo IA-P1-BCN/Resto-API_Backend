@@ -45,6 +45,7 @@ Pasos (por si hay que recrearlo):
    | `FRONTEND_URL` | URL de producción de Vercel, sin `/` final: `https://apiresto-f5.vercel.app`. Es la base del enlace del email para crear la contraseña (HU-52) y de los de verificar el email y restablecer la contraseña (HU-33). `PASSWORD_TOKEN_EXPIRE_HOURS` (48 por defecto) no hace falta tocarla |
    | `EMAIL_VERIFY_EXPIRE_HOURS`, `PASSWORD_RESET_EXPIRE_HOURS`, `TOKEN_RESEND_COOLDOWN_SECONDS` | Opcionales (HU-33): horas de validez del enlace de verificación (48 por defecto) y del de recuperación de contraseña (1), y segundos mínimos entre dos envíos del mismo tipo a una cuenta (60). No son secretos; con los valores por defecto no hace falta tocarlas |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Login social (HU-38). Vacías = ese proveedor responde `503`. Se crean en Google Cloud Console y en GitHub (OAuth App) con la callback `<URL de Vercel>/auth/callback`; los secretos solo en Render |
+   | `LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_MINUTES`, `CLIENT_IP_HEADER` | Límite de intentos de login (HU-31). Valores: `5`, `15` y `True-Client-IP`. Están en `render.yaml`, pero en un servicio ya creado Render no vuelve a leerlo: hay que añadirlas a mano en **Environment**. Sin `CLIENT_IP_HEADER`, el límite usa la IP del proxy de Render (funciona como "solo email"). Tras el deploy, ver [Comprobar el límite de login](#comprobar-el-límite-de-login-hu-31) |
    | `TOTP_ENCRYPTION_KEY` | Verificación en dos pasos (HU-37). Opcional: vacía = se deriva de `JWT_SECRET_KEY`. Si se pone, generarla con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` y no cambiarla después: los usuarios con 2FA activada no podrían entrar |
 
    `JWT_SECRET_KEY` la genera Render automáticamente.
@@ -143,6 +144,33 @@ Al entrar en `main` de `restochino-dev`:
 ```bash
 sh scripts/smoke-deploy.sh https://<servicio>.onrender.com https://<proyecto>.vercel.app
 ```
+
+### Comprobar el límite de login (HU-31)
+
+Una vez, tras el primer deploy con HU-31, para confirmar que la API ve la IP real del cliente
+y que nadie la puede falsear. Usa un email que **no exista** (así no se bloquea ninguna cuenta
+real; el bloqueo se va solo a los 15 minutos).
+
+1. Seis logins con contraseña incorrecta. Los cinco primeros dan `401` y el sexto, `429`:
+
+   ```bash
+   for i in 1 2 3 4 5 6; do
+     curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<servicio>.onrender.com/auth/login \
+       -d "username=prueba-hu31@example.com&password=incorrecta"
+   done
+   ```
+
+   En PowerShell: `1..6 | % { curl.exe -s -o NUL -w "%{http_code}`n" -X POST https://<servicio>.onrender.com/auth/login -d "username=prueba-hu31@example.com&password=incorrecta" }`.
+2. En Render → **Logs**, busca `Login blocked`. Su `client_ip` tiene que ser tu IP pública
+   (la que da `curl https://ifconfig.me`), no una IP interna (`10.x.x.x`).
+3. Repite el paso 1 con otro email (`prueba-hu31-b@example.com`) y la cabecera
+   `-H "True-Client-IP: 1.2.3.4"`. El nuevo `Login blocked` **no** puede mostrar `1.2.3.4`.
+
+| Resultado | Qué hacer |
+|---|---|
+| Paso 2 con tu IP y paso 3 sin `1.2.3.4` | Todo bien |
+| Paso 2 con una IP interna | La cabecera no llega: el límite funciona como "solo email". Avisar en Discord |
+| Paso 3 muestra `1.2.3.4` | El cliente puede falsear la IP: vaciar `CLIENT_IP_HEADER` en Render, reiniciar y avisar en Discord |
 
 ### Primer admin en producción
 

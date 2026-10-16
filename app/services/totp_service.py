@@ -24,6 +24,7 @@ from app.core.exceptions import AppError, ConflictError, UnauthorizedError
 from app.models.model_user import User
 from app.repositories import user_repository
 from app.schemas.schema_2fa import TwoFactorChallengeOut
+from app.services.login_rate_limit_service import two_factor_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -173,8 +174,11 @@ def verify_challenge(db: Session, mfa_token: str, code: str) -> User:
     if user is None or not user.is_active or user.deleted_at is not None or not user.totp_enabled:
         logger.warning("Two-factor verify rejected", extra={"code": "invalid_mfa_token"})
         raise UnauthorizedError("Invalid or expired two-factor token", code="invalid_mfa_token")
+    two_factor_rate_limiter.check(user.id)
     if not _accept_code(db, user, code):
+        two_factor_rate_limiter.register_failure(user.id)
         logger.warning("Two-factor verify rejected", extra={"user_id": user.id, "code": "invalid_totp_code"})
         raise UnauthorizedError("Invalid two-factor code", code="invalid_totp_code")
+    two_factor_rate_limiter.reset(user.id)
     logger.info("Two-factor verify accepted", extra={"user_id": user.id})
     return user

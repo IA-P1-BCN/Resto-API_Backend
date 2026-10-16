@@ -32,10 +32,13 @@ DbSession = Annotated[Session, Depends(get_db)]
     responses=error_responses(
         401,
         422,
+        429,
         descriptions={
             401: "Token temporal no válido o caducado, o cuenta desactivada (`invalid_mfa_token`), "
             "o código incorrecto (`invalid_totp_code`).",
             422: "Datos no válidos (`validation_error`).",
+            429: "Demasiados códigos incorrectos para esta cuenta (`too_many_attempts`, R-10, "
+            "HU-31). La cabecera `Retry-After` indica cuántos segundos faltan.",
         },
     ),
 )
@@ -45,7 +48,9 @@ def verify(data: TwoFactorVerifyRequest, db: DbSession) -> dict:
     Si la cuenta tiene la verificación en dos pasos, `POST /auth/login` y
     `POST /auth/social/{provider}` responden `{"mfa_required": true, "mfa_token": "..."}`
     en lugar del token. El `mfa_token` caduca en 5 minutos y un código de recuperación
-    solo sirve una vez. Rol: público.
+    solo sirve una vez. Tras `LOGIN_MAX_ATTEMPTS` códigos incorrectos (5) en
+    `LOGIN_WINDOW_MINUTES` (15), la cuenta recibe `429` hasta que acaba la ventana, también
+    con un código correcto (HU-31). Rol: público.
     """
     user = totp_service.verify_challenge(db, data.mfa_token, data.code)
     return {"access_token": create_access_token(user.id), "token_type": "bearer"}

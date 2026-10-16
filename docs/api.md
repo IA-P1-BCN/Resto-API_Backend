@@ -37,7 +37,7 @@ https://restoapi-47sp.onrender.com/docs. El esquema OpenAPI está en `/openapi.j
   `code`. `tests/test_openapi.py` falla si un endpoint nuevo de `/auth` o `/users` llega sin
   esa documentación.
 
-## Autenticación (`/auth`) · HU-04, HU-22, HU-38, HU-33
+## Autenticación (`/auth`) · HU-04, HU-22, HU-38, HU-33, HU-31
 
 | Método | Ruta | Qué hace | Éxito |
 |---|---|---|---|
@@ -82,6 +82,33 @@ Respuesta `201` (`UserOut`; nunca incluye `password_hash` ni el token):
 usuario desactivado → `401`. No comprueba `email_verified`: una cuenta sin verificar
 inicia sesión igual (HU-33, R-15).
 
+#### Límite de intentos · HU-31 (R-10)
+
+Los intentos fallidos se cuentan por pareja **IP + email** (el email en minúsculas y sin
+espacios). Cuenta cualquier `401` del login; un `422` no cuenta.
+
+| Situación | Respuesta |
+|---|---|
+| Fallos 1 a 5 en 15 minutos | `401` como siempre |
+| Desde el sexto intento, hasta que pasan 15 minutos desde el primer fallo | `429` `too_many_attempts`, también con la contraseña correcta |
+| Login correcto antes del bloqueo | `200`; los fallos de esa IP y ese email vuelven a 0 |
+| Otra IP con el mismo email, u otro email con la misma IP | No les afecta el bloqueo |
+
+El `429` trae la cabecera `Retry-After` con los segundos que faltan:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 812
+
+{"detail": "Too many failed login attempts. Try again later.", "code": "too_many_attempts"}
+```
+
+Variables: `LOGIN_MAX_ATTEMPTS` (5), `LOGIN_WINDOW_MINUTES` (15) y `CLIENT_IP_HEADER`
+(cabecera con la IP real; vacía en local, `True-Client-IP` en Render). Los contadores viven
+en memoria: un reinicio del servidor los borra. El login social no tiene límite. El código de
+la verificación en dos pasos tiene su propio límite, por usuario
+([HU-37](#login-con-verificación-en-dos-pasos-post-auth2faverify--hu-37)).
+
 ### Login social (`POST /auth/social/{provider}`) · HU-38
 
 Público. El frontend redirige al proveedor, recibe `?code` en su página de callback y lo envía:
@@ -118,6 +145,11 @@ caduca en 5 min y no sirve como access token. El cliente pide el código y lo ca
 `code` es el código de 6 dígitos de la app de autenticación (se acepta ±30 s) o un código de
 recuperación (`a1b2c3d4e5-f6a7b8c9d0`, de un solo uso). Respuesta `200`: `{"access_token", "token_type"}`.
 
+Límite de intentos (HU-31, R-10): tras 5 códigos incorrectos (`invalid_totp_code`) de la misma
+cuenta en 15 minutos, responde `429` `too_many_attempts` con `Retry-After`, también con un
+código correcto y desde cualquier IP. Cuenta por usuario, no por IP: para llegar aquí hace
+falta la contraseña. Un código correcto borra los fallos.
+
 | HTTP | `code` | Cuándo |
 |---|---|---|
 | 401 | `invalid_mfa_token` | `mfa_token` no válido o caducado, o usuario inactivo, borrado o sin 2FA |
@@ -135,6 +167,7 @@ con un token no válido o caducado → `401`.
 | 401 | `unauthorized` | Credenciales incorrectas, usuario inactivo, o token ausente/no válido |
 | 409 | `conflict` | El email ya está registrado (R-01) |
 | 422 | `validation_error` | Email con formato incorrecto, contraseña < 8 caracteres o campos que faltan (R-02) |
+| 429 | `too_many_attempts` | `POST /auth/login`: demasiados intentos fallidos desde esa IP para ese email (R-10); ver `Retry-After` |
 
 ## Mesas disponibles (`GET /tables/available`) · HU-18
 

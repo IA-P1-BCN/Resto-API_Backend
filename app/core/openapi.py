@@ -26,6 +26,9 @@ DEFAULT_DESCRIPTIONS: dict[int, str] = {
     status.HTTP_422_UNPROCESSABLE_CONTENT: (
         f"Datos no válidos (`{VALIDATION_ERROR_CODE}`)."
     ),
+    status.HTTP_429_TOO_MANY_REQUESTS: (
+        "Demasiados intentos; la cabecera `Retry-After` indica cuántos segundos esperar."
+    ),
     status.HTTP_502_BAD_GATEWAY: "Un proveedor externo no responde.",
     status.HTTP_503_SERVICE_UNAVAILABLE: "La función no está configurada en el servidor.",
 }
